@@ -9,6 +9,16 @@ import (
 
 type Option func(*Engine)
 
+func WithTables(tables []*table.Table) Option {
+	return func(e *Engine) {
+		if tables == nil {
+			e.Tables = []*table.Table{}
+			return
+		}
+		e.Tables = tables
+	}
+}
+
 func WithNoConnTrack() Option {
 	return func(e *Engine) {
 		e.ConntrackEnabled = false
@@ -21,13 +31,10 @@ type Engine struct {
 	ConntrackEnabled bool
 }
 
-func New(tables []*table.Table, opts ...Option) *Engine {
+func New(opts ...Option) *Engine {
 	engine := &Engine{
 		Tables:           []*table.Table{},
 		ConntrackEnabled: true,
-	}
-	if tables != nil {
-		engine.Tables = tables
 	}
 	for _, opt := range opts {
 		opt(engine)
@@ -35,14 +42,14 @@ func New(tables []*table.Table, opts ...Option) *Engine {
 	return engine
 }
 
-func (e *Engine) Run(contexts []*match.MatchContext) []*match.MatchContext {
-	results := make([]*match.MatchContext, 0, len(contexts))
+func (e *Engine) Run(mc []*match.MatchContext) []*match.MatchContext {
+	results := make([]*match.MatchContext, 0, len(mc))
 
 	var tracker *conntrack.Tracker
 	if e.ConntrackEnabled {
 		tracker = conntrack.NewTracker()
 	}
-	for _, mc := range contexts {
+	for _, mc := range mc {
 		if e.ConntrackEnabled {
 			mc.ConnState = tracker.Lookup(mc.Packet)
 		}

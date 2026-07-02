@@ -124,7 +124,7 @@ func TestFVStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	policy.AddChain(admin)
 	policy.SetEntryChain("entry")
 
-	engine := firecore.New([]*table.Table{policy})
+	engine := firecore.New(firecore.WithTables([]*table.Table{policy}))
 
 	request := match.New(
 		packet.New(
@@ -264,7 +264,7 @@ func TestFVPassReturnAndOrderedTables(t *testing.T) {
 	policy.AddChain(policyEntry)
 	policy.SetEntryChain("entry")
 
-	engine := firecore.New([]*table.Table{classify, policy})
+	engine := firecore.New(firecore.WithTables([]*table.Table{classify, policy}))
 
 	context := match.New(
 		packet.New(
