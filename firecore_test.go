@@ -17,6 +17,16 @@ func TestNew(t *testing.T) {
 
 	engine := New(nil)
 	Expect(engine).ToNot(BeNil())
+	Expect(engine.Tables).To(BeEmpty())
+	Expect(engine.ConntrackEnabled).To(BeTrue())
+}
+
+func TestNewAppliesOptions(t *testing.T) {
+	RegisterTestingT(t)
+
+	engine := New(nil, WithNoConnTrack())
+
+	Expect(engine.ConntrackEnabled).To(BeFalse())
 }
 
 func TestRunPassesToNextTable(t *testing.T) {
@@ -111,6 +121,62 @@ func TestRunTracksEstablishedFlows(t *testing.T) {
 	Expect(results[0].VerdictMatches()).To(BeTrue())
 	Expect(results[0].RuleMatches()).To(BeTrue())
 	Expect(results[1].ConnState).To(Equal(conntrack.StateEstablished))
+	Expect(results[1].VerdictMatches()).To(BeTrue())
+	Expect(results[1].RuleMatches()).To(BeTrue())
+}
+
+func TestRunWithNoConnTrackDisablesStatefulMatching(t *testing.T) {
+	RegisterTestingT(t)
+
+	stateful := table.New("stateful", 1, rule.Drop)
+	defaultChain := table.NewChain("default")
+	defaultChain.AddRule(rule.New(
+		rule.WithName("allow-new-http"),
+		rule.WithConnState(conntrack.StateNew),
+		rule.WithDstPort(80),
+		rule.WithProto(proto.TCP),
+		rule.WithAction(rule.Accept),
+	))
+	defaultChain.AddRule(rule.New(
+		rule.WithName("allow-established"),
+		rule.WithConnState(conntrack.StateEstablished),
+		rule.WithProto(proto.TCP),
+		rule.WithAction(rule.Accept),
+	))
+	stateful.AddChain(defaultChain)
+
+	request := match.New(
+		packet.New(
+			packet.WithName("request"),
+			packet.WithSrcAddr("10.0.0.1"),
+			packet.WithDstAddr("1.1.1.1"),
+			packet.WithProto(proto.TCP),
+			packet.WithSrcPort(12345),
+			packet.WithDstPort(80),
+		),
+		match.WithExpectedVerdict(rule.Accept),
+		match.WithExpectedRule("allow-new-http"),
+	)
+	reply := match.New(
+		packet.New(
+			packet.WithName("reply"),
+			packet.WithSrcAddr("1.1.1.1"),
+			packet.WithDstAddr("10.0.0.1"),
+			packet.WithProto(proto.TCP),
+			packet.WithSrcPort(80),
+			packet.WithDstPort(12345),
+		),
+		match.WithExpectedVerdict(rule.Drop),
+		match.WithExpectedRule("table stateful default action"),
+	)
+
+	results := New([]*table.Table{stateful}, WithNoConnTrack()).Run([]*match.MatchContext{request, reply})
+
+	Expect(results).To(HaveLen(2))
+	Expect(results[0].ConnState).To(Equal(conntrack.StateNew))
+	Expect(results[0].VerdictMatches()).To(BeTrue())
+	Expect(results[0].RuleMatches()).To(BeTrue())
+	Expect(results[1].ConnState).To(Equal(conntrack.StateNew))
 	Expect(results[1].VerdictMatches()).To(BeTrue())
 	Expect(results[1].RuleMatches()).To(BeTrue())
 }

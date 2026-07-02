@@ -7,22 +7,45 @@ import (
 	"github.com/mazdakn/firecore/table"
 )
 
-type Engine struct {
-	Tables []*table.Table
+type Option func(*Engine)
+
+func WithNoConnTrack() Option {
+	return func(e *Engine) {
+		e.ConntrackEnabled = false
+	}
 }
 
-func New(tables []*table.Table) *Engine {
-	if tables != nil {
-		return &Engine{Tables: tables}
+type Engine struct {
+	Tables []*table.Table
+
+	ConntrackEnabled bool
+}
+
+func New(tables []*table.Table, opts ...Option) *Engine {
+	engine := &Engine{
+		Tables:           []*table.Table{},
+		ConntrackEnabled: true,
 	}
-	return &Engine{Tables: []*table.Table{}}
+	if tables != nil {
+		engine.Tables = tables
+	}
+	for _, opt := range opts {
+		opt(engine)
+	}
+	return engine
 }
 
 func (e *Engine) Run(contexts []*match.MatchContext) []*match.MatchContext {
 	results := make([]*match.MatchContext, 0, len(contexts))
-	tracker := conntrack.NewTracker()
+
+	var tracker *conntrack.Tracker
+	if e.ConntrackEnabled {
+		tracker = conntrack.NewTracker()
+	}
 	for _, mc := range contexts {
-		mc.ConnState = tracker.Lookup(mc.Packet)
+		if e.ConntrackEnabled {
+			mc.ConnState = tracker.Lookup(mc.Packet)
+		}
 		decided := false
 		for _, t := range e.Tables {
 			if t.Match(mc) {
@@ -33,7 +56,7 @@ func (e *Engine) Run(contexts []*match.MatchContext) []*match.MatchContext {
 		if !decided {
 			mc.Verdict = nil
 		}
-		if mc.Verdict != nil && *mc.Verdict == rule.Accept {
+		if e.ConntrackEnabled && mc.Verdict != nil && *mc.Verdict == rule.Accept {
 			tracker.CommitAccepted(mc.Packet)
 		}
 		results = append(results, mc)
