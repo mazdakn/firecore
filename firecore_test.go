@@ -17,7 +17,7 @@ func TestNew(t *testing.T) {
 
 	engine := New()
 	Expect(engine).ToNot(BeNil())
-	Expect(engine.Tables).To(BeEmpty())
+	Expect(engine.Tables).To(BeNil())
 	Expect(engine.ConntrackEnabled).To(BeTrue())
 }
 

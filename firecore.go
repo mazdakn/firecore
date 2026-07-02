@@ -11,10 +11,6 @@ type Option func(*Engine)
 
 func WithTables(tables []*table.Table) Option {
 	return func(e *Engine) {
-		if tables == nil {
-			e.Tables = []*table.Table{}
-			return
-		}
 		e.Tables = tables
 	}
 }
@@ -33,7 +29,6 @@ type Engine struct {
 
 func New(opts ...Option) *Engine {
 	engine := &Engine{
-		Tables:           []*table.Table{},
 		ConntrackEnabled: true,
 	}
 	for _, opt := range opts {
