@@ -1,0 +1,192 @@
+package engine_test
+
+import (
+	"net"
+	"testing"
+
+	"github.com/mazdakn/firecore/conntrack"
+	enginepkg "github.com/mazdakn/firecore/engine"
+	"github.com/mazdakn/firecore/match"
+	"github.com/mazdakn/firecore/packet"
+	"github.com/mazdakn/firecore/proto"
+	"github.com/mazdakn/firecore/rule"
+	"github.com/mazdakn/firecore/table"
+	. "github.com/onsi/gomega"
+)
+
+func TestNew(t *testing.T) {
+	RegisterTestingT(t)
+
+	engine := enginepkg.New(nil)
+	Expect(engine).ToNot(BeNil())
+}
+
+func TestRunPassesToNextTable(t *testing.T) {
+	RegisterTestingT(t)
+
+	passTable := table.New("pass-table", 1, rule.Drop)
+	passChain := table.NewChain("default")
+	passChain.AddRule(rule.New(
+		rule.WithName("pass-http"),
+		rule.WithDstPort(80),
+		rule.WithProto(proto.TCP),
+		rule.WithAction(rule.Pass),
+	))
+	passTable.AddChain(passChain)
+
+	acceptTable := table.New("accept-table", 2, rule.Drop)
+	acceptChain := table.NewChain("default")
+	acceptChain.AddRule(rule.New(
+		rule.WithName("accept-http"),
+		rule.WithDstPort(80),
+		rule.WithProto(proto.TCP),
+		rule.WithAction(rule.Accept),
+	))
+	acceptTable.AddChain(acceptChain)
+
+	results := enginepkg.New([]*table.Table{passTable, acceptTable}).Run([]*match.MatchContext{
+		match.New(packet.New(
+			packet.WithSrcAddr("10.0.0.1"),
+			packet.WithDstAddr("1.1.1.1"),
+			packet.WithProto(proto.TCP),
+			packet.WithSrcPort(12345),
+			packet.WithDstPort(80),
+		)),
+	})
+
+	Expect(results).To(HaveLen(1))
+	Expect(results[0].Verdict).To(HaveValue(Equal(rule.Accept)))
+	Expect(results[0].Trace).To(HaveLen(2))
+	Expect(results[0].Trace[0].Name).To(Equal("pass-http"))
+	Expect(results[0].Trace[1].Name).To(Equal("accept-http"))
+}
+
+func TestRunTracksEstablishedFlows(t *testing.T) {
+	RegisterTestingT(t)
+
+	stateful := table.New("stateful", 1, rule.Drop)
+	defaultChain := table.NewChain("default")
+	defaultChain.AddRule(rule.New(
+		rule.WithName("allow-new-http"),
+		rule.WithConnState(conntrack.StateNew),
+		rule.WithDstPort(80),
+		rule.WithProto(proto.TCP),
+		rule.WithAction(rule.Accept),
+	))
+	defaultChain.AddRule(rule.New(
+		rule.WithName("allow-established"),
+		rule.WithConnState(conntrack.StateEstablished),
+		rule.WithProto(proto.TCP),
+		rule.WithAction(rule.Accept),
+	))
+	stateful.AddChain(defaultChain)
+
+	request := match.New(
+		packet.New(
+			packet.WithName("request"),
+			packet.WithSrcAddr("10.0.0.1"),
+			packet.WithDstAddr("1.1.1.1"),
+			packet.WithProto(proto.TCP),
+			packet.WithSrcPort(12345),
+			packet.WithDstPort(80),
+		),
+		match.WithExpectedVerdict(rule.Accept),
+		match.WithExpectedRule("allow-new-http"),
+	)
+	reply := match.New(
+		packet.New(
+			packet.WithName("reply"),
+			packet.WithSrcAddr("1.1.1.1"),
+			packet.WithDstAddr("10.0.0.1"),
+			packet.WithProto(proto.TCP),
+			packet.WithSrcPort(80),
+			packet.WithDstPort(12345),
+		),
+		match.WithExpectedVerdict(rule.Accept),
+		match.WithExpectedRule("allow-established"),
+	)
+
+	results := enginepkg.New([]*table.Table{stateful}).Run([]*match.MatchContext{request, reply})
+
+	Expect(results).To(HaveLen(2))
+	Expect(results[0].ConnState).To(Equal(conntrack.StateNew))
+	Expect(results[0].VerdictMatches()).To(BeTrue())
+	Expect(results[0].RuleMatches()).To(BeTrue())
+	Expect(results[1].ConnState).To(Equal(conntrack.StateEstablished))
+	Expect(results[1].VerdictMatches()).To(BeTrue())
+	Expect(results[1].RuleMatches()).To(BeTrue())
+}
+
+func TestRunSupportsJumpChains(t *testing.T) {
+	RegisterTestingT(t)
+
+	tbl := table.New("main", 1, rule.Drop)
+	entry := table.NewChain("entry")
+	entry.AddRule(rule.New(
+		rule.WithName("jump-admin"),
+		rule.WithSrcNet("10.0.0.0/8"),
+		rule.WithJump("admin"),
+	))
+	entry.AddRule(rule.New(
+		rule.WithName("deny-all"),
+		rule.WithAction(rule.Drop),
+	))
+	admin := table.NewChain("admin")
+	admin.AddRule(rule.New(
+		rule.WithName("allow-admin-http"),
+		rule.WithDstPort(80),
+		rule.WithProto(proto.TCP),
+		rule.WithAction(rule.Accept),
+	))
+	tbl.AddChain(entry)
+	tbl.AddChain(admin)
+	tbl.SetEntryChain("entry")
+
+	results := enginepkg.New([]*table.Table{tbl}).Run([]*match.MatchContext{
+		match.New(packet.New(
+			packet.WithSrcAddr("10.0.0.1"),
+			packet.WithDstAddr("1.1.1.1"),
+			packet.WithProto(proto.TCP),
+			packet.WithSrcPort(12345),
+			packet.WithDstPort(80),
+		)),
+	})
+
+	Expect(results).To(HaveLen(1))
+	Expect(results[0].Verdict).To(HaveValue(Equal(rule.Accept)))
+	Expect(results[0].Trace).To(HaveLen(2))
+	Expect(results[0].Trace[0].Name).To(Equal("jump-admin"))
+	Expect(results[0].Trace[1].Name).To(Equal("allow-admin-http"))
+}
+
+func TestValidateReportsUnusedRules(t *testing.T) {
+	RegisterTestingT(t)
+
+	tbl := table.New("main", 1, rule.Drop)
+	defaultChain := table.NewChain("default")
+	defaultChain.AddRule(rule.New(
+		rule.WithName("accept-local"),
+		rule.WithSrcNet("10.0.0.0/8"),
+		rule.WithAction(rule.Accept),
+	))
+	defaultChain.AddRule(rule.New(
+		rule.WithName("drop-remote"),
+		rule.WithSrcNet("192.0.2.0/24"),
+		rule.WithAction(rule.Drop),
+	))
+	tbl.AddChain(defaultChain)
+
+	engine := enginepkg.New([]*table.Table{tbl})
+	engine.Run([]*match.MatchContext{
+		match.New(&packet.Packet{
+			SrcAddr:  net.ParseIP("10.0.0.1"),
+			DstAddr:  net.ParseIP("1.1.1.1"),
+			Proto:    proto.TCP,
+			SrcPort:  12345,
+			DstPort:  80,
+			Metadata: packet.NewMetadata(),
+		}),
+	})
+
+	Expect(engine.Validate()).To(ContainElement("Table main Chain default Rule 1 not used"))
+}
