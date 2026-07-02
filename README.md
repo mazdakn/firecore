@@ -1,9 +1,7 @@
 firecore
 ========
 
-firecore is the reusable packet-matching runtime extracted from `fwsim`.
-
-It contains the engine and runtime domain packages needed to evaluate packets:
+firecore is the reusable packet-matching. It contains the engine and runtime domain packages needed to evaluate packets:
 
 - engine
 - table
@@ -15,6 +13,3 @@ It contains the engine and runtime domain packages needed to evaluate packets:
 - port
 - conntrack
 - counter
-
-`firecore` intentionally does **not** include YAML/config loading, CLI code, or
-the `validator` package; those remain in `fwsim`.

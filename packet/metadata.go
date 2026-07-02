@@ -3,9 +3,9 @@ package packet
 type MetadataOption func(*Metadata)
 
 type Metadata struct {
-	IngressIface string `yaml:"ingressIface,omitempty"`
-	EgressIface  string `yaml:"egressIface,omitempty"`
-	Name         string `yaml:"name,omitempty"`
+	IngressIface string
+	EgressIface  string
+	Name         string
 }
 
 func NewMetadata(opts ...MetadataOption) *Metadata {
