@@ -18,7 +18,7 @@ func TestNew(t *testing.T) {
 	engine := New()
 	Expect(engine).ToNot(BeNil())
 	Expect(engine.Tables).To(BeNil())
-	Expect(engine.ConntrackEnabled).To(BeFalse())
+	Expect(engine.tracker).To(BeNil())
 }
 
 func TestNewAppliesOptions(t *testing.T) {
@@ -27,7 +27,7 @@ func TestNewAppliesOptions(t *testing.T) {
 	engine := New(WithConntrack())
 
 	Expect(engine.Tables).To(BeNil())
-	Expect(engine.ConntrackEnabled).To(BeTrue())
+	Expect(engine.tracker).NotTo(BeNil())
 }
 
 func TestAddTable(t *testing.T) {

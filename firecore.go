@@ -1,8 +1,6 @@
 package firecore
 
 import (
-	"sort"
-
 	"github.com/mazdakn/firecore/conntrack"
 	"github.com/mazdakn/firecore/match"
 	"github.com/mazdakn/firecore/rule"
@@ -13,15 +11,14 @@ type Option func(*Engine)
 
 func WithConntrack() Option {
 	return func(e *Engine) {
-		e.ConntrackEnabled = true
+		e.tracker = conntrack.NewTracker()
 	}
 }
 
 type Engine struct {
 	Tables []*table.Table
 
-	ConntrackEnabled bool
-	tracker          *conntrack.Tracker
+	tracker *conntrack.Tracker
 }
 
 func New(opts ...Option) *Engine {
@@ -39,13 +36,10 @@ func (e *Engine) AddTable(t *table.Table) {
 func (e *Engine) Evaluate(mc []*match.MatchContext) []*match.MatchContext {
 	results := make([]*match.MatchContext, 0, len(mc))
 
-	sortTables(e.Tables)
+	table.SortTables(e.Tables)
 
-	if e.ConntrackEnabled {
-		e.tracker = conntrack.NewTracker()
-	}
 	for _, mc := range mc {
-		if e.ConntrackEnabled {
+		if e.tracker != nil {
 			mc.ConnState = e.tracker.Lookup(mc.Packet)
 		}
 		decided := false
@@ -58,16 +52,10 @@ func (e *Engine) Evaluate(mc []*match.MatchContext) []*match.MatchContext {
 		if !decided {
 			mc.Verdict = nil
 		}
-		if e.ConntrackEnabled && mc.Verdict != nil && *mc.Verdict == rule.Accept {
+		if e.tracker != nil && mc.Verdict != nil && *mc.Verdict == rule.Accept {
 			e.tracker.CommitAccepted(mc.Packet)
 		}
 		results = append(results, mc)
 	}
 	return results
-}
-
-func sortTables(tables []*table.Table) {
-	sort.SliceStable(tables, func(i, j int) bool {
-		return tables[i].Order < tables[j].Order
-	})
 }
