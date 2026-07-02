@@ -1,4 +1,4 @@
-package engine
+package firecore
 
 import (
 	"github.com/mazdakn/firecore/conntrack"
@@ -8,14 +8,14 @@ import (
 )
 
 type Engine struct {
-	tables []*table.Table
+	Tables []*table.Table
 }
 
 func New(tables []*table.Table) *Engine {
 	if tables != nil {
-		return &Engine{tables: tables}
+		return &Engine{Tables: tables}
 	}
-	return &Engine{tables: []*table.Table{}}
+	return &Engine{Tables: []*table.Table{}}
 }
 
 func (e *Engine) Run(contexts []*match.MatchContext) []*match.MatchContext {
@@ -24,7 +24,7 @@ func (e *Engine) Run(contexts []*match.MatchContext) []*match.MatchContext {
 	for _, mc := range contexts {
 		mc.ConnState = tracker.Lookup(mc.Packet)
 		decided := false
-		for _, t := range e.tables {
+		for _, t := range e.Tables {
 			if t.Match(mc) {
 				decided = true
 				break

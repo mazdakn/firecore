@@ -1,11 +1,9 @@
-package engine_test
+package firecore
 
 import (
-	"net"
 	"testing"
 
 	"github.com/mazdakn/firecore/conntrack"
-	enginepkg "github.com/mazdakn/firecore/engine"
 	"github.com/mazdakn/firecore/match"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/proto"
@@ -17,7 +15,7 @@ import (
 func TestNew(t *testing.T) {
 	RegisterTestingT(t)
 
-	engine := enginepkg.New(nil)
+	engine := New(nil)
 	Expect(engine).ToNot(BeNil())
 }
 
@@ -44,7 +42,7 @@ func TestRunPassesToNextTable(t *testing.T) {
 	))
 	acceptTable.AddChain(acceptChain)
 
-	results := enginepkg.New([]*table.Table{passTable, acceptTable}).Run([]*match.MatchContext{
+	results := New([]*table.Table{passTable, acceptTable}).Run([]*match.MatchContext{
 		match.New(packet.New(
 			packet.WithSrcAddr("10.0.0.1"),
 			packet.WithDstAddr("1.1.1.1"),
@@ -106,7 +104,7 @@ func TestRunTracksEstablishedFlows(t *testing.T) {
 		match.WithExpectedRule("allow-established"),
 	)
 
-	results := enginepkg.New([]*table.Table{stateful}).Run([]*match.MatchContext{request, reply})
+	results := New([]*table.Table{stateful}).Run([]*match.MatchContext{request, reply})
 
 	Expect(results).To(HaveLen(2))
 	Expect(results[0].ConnState).To(Equal(conntrack.StateNew))
@@ -142,7 +140,7 @@ func TestRunSupportsJumpChains(t *testing.T) {
 	tbl.AddChain(admin)
 	tbl.SetEntryChain("entry")
 
-	results := enginepkg.New([]*table.Table{tbl}).Run([]*match.MatchContext{
+	results := New([]*table.Table{tbl}).Run([]*match.MatchContext{
 		match.New(packet.New(
 			packet.WithSrcAddr("10.0.0.1"),
 			packet.WithDstAddr("1.1.1.1"),
@@ -157,36 +155,4 @@ func TestRunSupportsJumpChains(t *testing.T) {
 	Expect(results[0].Trace).To(HaveLen(2))
 	Expect(results[0].Trace[0].Name).To(Equal("jump-admin"))
 	Expect(results[0].Trace[1].Name).To(Equal("allow-admin-http"))
-}
-
-func TestValidateReportsUnusedRules(t *testing.T) {
-	RegisterTestingT(t)
-
-	tbl := table.New("main", 1, rule.Drop)
-	defaultChain := table.NewChain("default")
-	defaultChain.AddRule(rule.New(
-		rule.WithName("accept-local"),
-		rule.WithSrcNet("10.0.0.0/8"),
-		rule.WithAction(rule.Accept),
-	))
-	defaultChain.AddRule(rule.New(
-		rule.WithName("drop-remote"),
-		rule.WithSrcNet("192.0.2.0/24"),
-		rule.WithAction(rule.Drop),
-	))
-	tbl.AddChain(defaultChain)
-
-	engine := enginepkg.New([]*table.Table{tbl})
-	engine.Run([]*match.MatchContext{
-		match.New(&packet.Packet{
-			SrcAddr:  net.ParseIP("10.0.0.1"),
-			DstAddr:  net.ParseIP("1.1.1.1"),
-			Proto:    proto.TCP,
-			SrcPort:  12345,
-			DstPort:  80,
-			Metadata: packet.NewMetadata(),
-		}),
-	})
-
-	Expect(engine.Validate()).To(ContainElement("Table main Chain default Rule 1 not used"))
 }
