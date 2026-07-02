@@ -24,11 +24,68 @@ func TestNew(t *testing.T) {
 func TestNewAppliesOptions(t *testing.T) {
 	RegisterTestingT(t)
 
-	tables := []*table.Table{table.New("filter", 1, rule.Drop)}
-	engine := New(WithTables(tables), WithNoConnTrack())
+	engine := New(WithNoConnTrack())
 
-	Expect(engine.Tables).To(Equal(tables))
+	Expect(engine.Tables).To(BeNil())
 	Expect(engine.ConntrackEnabled).To(BeFalse())
+}
+
+func TestAddTable(t *testing.T) {
+	RegisterTestingT(t)
+
+	first := table.New("first", 1, rule.Drop)
+	second := table.New("second", 2, rule.Drop)
+	engine := New()
+
+	engine.AddTable(first)
+	engine.AddTable(second)
+
+	Expect(engine.Tables).To(Equal([]*table.Table{first, second}))
+}
+
+func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
+	RegisterTestingT(t)
+
+	acceptTable := table.New("accept-table", 2, rule.Drop)
+	acceptChain := table.NewChain("default")
+	acceptChain.AddRule(rule.New(
+		rule.WithName("accept-http"),
+		rule.WithDstPort(80),
+		rule.WithProto(proto.TCP),
+		rule.WithAction(rule.Accept),
+	))
+	acceptTable.AddChain(acceptChain)
+
+	passTable := table.New("pass-table", 1, rule.Drop)
+	passChain := table.NewChain("default")
+	passChain.AddRule(rule.New(
+		rule.WithName("pass-http"),
+		rule.WithDstPort(80),
+		rule.WithProto(proto.TCP),
+		rule.WithAction(rule.Pass),
+	))
+	passTable.AddChain(passChain)
+
+	engine := New()
+	engine.AddTable(acceptTable)
+	engine.AddTable(passTable)
+
+	results := engine.Evaluate([]*match.MatchContext{
+		match.New(packet.New(
+			packet.WithSrcAddr("10.0.0.1"),
+			packet.WithDstAddr("1.1.1.1"),
+			packet.WithProto(proto.TCP),
+			packet.WithSrcPort(12345),
+			packet.WithDstPort(80),
+		)),
+	})
+
+	Expect(engine.Tables).To(Equal([]*table.Table{passTable, acceptTable}))
+	Expect(results).To(HaveLen(1))
+	Expect(results[0].Verdict).To(HaveValue(Equal(rule.Accept)))
+	Expect(results[0].Trace).To(HaveLen(2))
+	Expect(results[0].Trace[0].Name).To(Equal("pass-http"))
+	Expect(results[0].Trace[1].Name).To(Equal("accept-http"))
 }
 
 func TestEvaluatePassesToNextTable(t *testing.T) {
@@ -54,7 +111,11 @@ func TestEvaluatePassesToNextTable(t *testing.T) {
 	))
 	acceptTable.AddChain(acceptChain)
 
-	results := New(WithTables([]*table.Table{passTable, acceptTable})).Evaluate([]*match.MatchContext{
+	engine := New()
+	engine.AddTable(passTable)
+	engine.AddTable(acceptTable)
+
+	results := engine.Evaluate([]*match.MatchContext{
 		match.New(packet.New(
 			packet.WithSrcAddr("10.0.0.1"),
 			packet.WithDstAddr("1.1.1.1"),
@@ -116,7 +177,10 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 		match.WithExpectedRule("allow-established"),
 	)
 
-	results := New(WithTables([]*table.Table{stateful})).Evaluate([]*match.MatchContext{request, reply})
+	engine := New()
+	engine.AddTable(stateful)
+
+	results := engine.Evaluate([]*match.MatchContext{request, reply})
 
 	Expect(results).To(HaveLen(2))
 	Expect(results[0].ConnState).To(Equal(conntrack.StateNew))
@@ -172,7 +236,10 @@ func TestEvaluateWithNoConnTrackDisablesStatefulMatching(t *testing.T) {
 		match.WithExpectedRule("table stateful default action"),
 	)
 
-	results := New(WithTables([]*table.Table{stateful}), WithNoConnTrack()).Evaluate([]*match.MatchContext{request, reply})
+	engine := New(WithNoConnTrack())
+	engine.AddTable(stateful)
+
+	results := engine.Evaluate([]*match.MatchContext{request, reply})
 
 	Expect(results).To(HaveLen(2))
 	Expect(results[0].ConnState).To(Equal(conntrack.StateNew))
@@ -208,7 +275,10 @@ func TestEvaluateSupportsJumpChains(t *testing.T) {
 	tbl.AddChain(admin)
 	tbl.SetEntryChain("entry")
 
-	results := New(WithTables([]*table.Table{tbl})).Evaluate([]*match.MatchContext{
+	engine := New()
+	engine.AddTable(tbl)
+
+	results := engine.Evaluate([]*match.MatchContext{
 		match.New(packet.New(
 			packet.WithSrcAddr("10.0.0.1"),
 			packet.WithDstAddr("1.1.1.1"),

@@ -1,6 +1,8 @@
 package firecore
 
 import (
+	"sort"
+
 	"github.com/mazdakn/firecore/conntrack"
 	"github.com/mazdakn/firecore/match"
 	"github.com/mazdakn/firecore/rule"
@@ -8,12 +10,6 @@ import (
 )
 
 type Option func(*Engine)
-
-func WithTables(tables []*table.Table) Option {
-	return func(e *Engine) {
-		e.Tables = tables
-	}
-}
 
 func WithNoConnTrack() Option {
 	return func(e *Engine) {
@@ -38,8 +34,14 @@ func New(opts ...Option) *Engine {
 	return engine
 }
 
+func (e *Engine) AddTable(t *table.Table) {
+	e.Tables = append(e.Tables, t)
+}
+
 func (e *Engine) Evaluate(mc []*match.MatchContext) []*match.MatchContext {
 	results := make([]*match.MatchContext, 0, len(mc))
+
+	sortTables(e.Tables)
 
 	if e.ConntrackEnabled {
 		e.tracker = conntrack.NewTracker()
@@ -64,4 +66,10 @@ func (e *Engine) Evaluate(mc []*match.MatchContext) []*match.MatchContext {
 		results = append(results, mc)
 	}
 	return results
+}
+
+func sortTables(tables []*table.Table) {
+	sort.SliceStable(tables, func(i, j int) bool {
+		return tables[i].Order < tables[j].Order
+	})
 }
