@@ -178,7 +178,7 @@ func TestFVStatefulPolicyAcrossPublicPackages(t *testing.T) {
 		match.WithExpectedRule("table policy default action"),
 	)
 
-	results := engine.Run([]*match.MatchContext{request, reply, dnsQuery, outsider})
+	results := engine.Evaluate([]*match.MatchContext{request, reply, dnsQuery, outsider})
 
 	Expect(results).To(HaveLen(4))
 	Expect(results[0].ConnState).To(Equal(conntrack.StateNew))
@@ -278,7 +278,7 @@ func TestFVPassReturnAndOrderedTables(t *testing.T) {
 		match.WithExpectedRule("allow-trusted-app"),
 	)
 
-	results := engine.Run([]*match.MatchContext{context})
+	results := engine.Evaluate([]*match.MatchContext{context})
 
 	Expect(results).To(HaveLen(1))
 	Expect(results[0].VerdictMatches()).To(BeTrue())

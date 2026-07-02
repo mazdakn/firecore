@@ -25,6 +25,7 @@ type Engine struct {
 	Tables []*table.Table
 
 	ConntrackEnabled bool
+	tracker          *conntrack.Tracker
 }
 
 func New(opts ...Option) *Engine {
@@ -37,16 +38,15 @@ func New(opts ...Option) *Engine {
 	return engine
 }
 
-func (e *Engine) Run(mc []*match.MatchContext) []*match.MatchContext {
+func (e *Engine) Evaluate(mc []*match.MatchContext) []*match.MatchContext {
 	results := make([]*match.MatchContext, 0, len(mc))
 
-	var tracker *conntrack.Tracker
 	if e.ConntrackEnabled {
-		tracker = conntrack.NewTracker()
+		e.tracker = conntrack.NewTracker()
 	}
 	for _, mc := range mc {
 		if e.ConntrackEnabled {
-			mc.ConnState = tracker.Lookup(mc.Packet)
+			mc.ConnState = e.tracker.Lookup(mc.Packet)
 		}
 		decided := false
 		for _, t := range e.Tables {
@@ -59,7 +59,7 @@ func (e *Engine) Run(mc []*match.MatchContext) []*match.MatchContext {
 			mc.Verdict = nil
 		}
 		if e.ConntrackEnabled && mc.Verdict != nil && *mc.Verdict == rule.Accept {
-			tracker.CommitAccepted(mc.Packet)
+			e.tracker.CommitAccepted(mc.Packet)
 		}
 		results = append(results, mc)
 	}

@@ -31,7 +31,7 @@ func TestNewAppliesOptions(t *testing.T) {
 	Expect(engine.ConntrackEnabled).To(BeFalse())
 }
 
-func TestRunPassesToNextTable(t *testing.T) {
+func TestEvaluatePassesToNextTable(t *testing.T) {
 	RegisterTestingT(t)
 
 	passTable := table.New("pass-table", 1, rule.Drop)
@@ -54,7 +54,7 @@ func TestRunPassesToNextTable(t *testing.T) {
 	))
 	acceptTable.AddChain(acceptChain)
 
-	results := New(WithTables([]*table.Table{passTable, acceptTable})).Run([]*match.MatchContext{
+	results := New(WithTables([]*table.Table{passTable, acceptTable})).Evaluate([]*match.MatchContext{
 		match.New(packet.New(
 			packet.WithSrcAddr("10.0.0.1"),
 			packet.WithDstAddr("1.1.1.1"),
@@ -71,7 +71,7 @@ func TestRunPassesToNextTable(t *testing.T) {
 	Expect(results[0].Trace[1].Name).To(Equal("accept-http"))
 }
 
-func TestRunTracksEstablishedFlows(t *testing.T) {
+func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 	RegisterTestingT(t)
 
 	stateful := table.New("stateful", 1, rule.Drop)
@@ -116,7 +116,7 @@ func TestRunTracksEstablishedFlows(t *testing.T) {
 		match.WithExpectedRule("allow-established"),
 	)
 
-	results := New(WithTables([]*table.Table{stateful})).Run([]*match.MatchContext{request, reply})
+	results := New(WithTables([]*table.Table{stateful})).Evaluate([]*match.MatchContext{request, reply})
 
 	Expect(results).To(HaveLen(2))
 	Expect(results[0].ConnState).To(Equal(conntrack.StateNew))
@@ -127,7 +127,7 @@ func TestRunTracksEstablishedFlows(t *testing.T) {
 	Expect(results[1].RuleMatches()).To(BeTrue())
 }
 
-func TestRunWithNoConnTrackDisablesStatefulMatching(t *testing.T) {
+func TestEvaluateWithNoConnTrackDisablesStatefulMatching(t *testing.T) {
 	RegisterTestingT(t)
 
 	stateful := table.New("stateful", 1, rule.Drop)
@@ -172,7 +172,7 @@ func TestRunWithNoConnTrackDisablesStatefulMatching(t *testing.T) {
 		match.WithExpectedRule("table stateful default action"),
 	)
 
-	results := New(WithTables([]*table.Table{stateful}), WithNoConnTrack()).Run([]*match.MatchContext{request, reply})
+	results := New(WithTables([]*table.Table{stateful}), WithNoConnTrack()).Evaluate([]*match.MatchContext{request, reply})
 
 	Expect(results).To(HaveLen(2))
 	Expect(results[0].ConnState).To(Equal(conntrack.StateNew))
@@ -183,7 +183,7 @@ func TestRunWithNoConnTrackDisablesStatefulMatching(t *testing.T) {
 	Expect(results[1].RuleMatches()).To(BeTrue())
 }
 
-func TestRunSupportsJumpChains(t *testing.T) {
+func TestEvaluateSupportsJumpChains(t *testing.T) {
 	RegisterTestingT(t)
 
 	tbl := table.New("main", 1, rule.Drop)
@@ -208,7 +208,7 @@ func TestRunSupportsJumpChains(t *testing.T) {
 	tbl.AddChain(admin)
 	tbl.SetEntryChain("entry")
 
-	results := New(WithTables([]*table.Table{tbl})).Run([]*match.MatchContext{
+	results := New(WithTables([]*table.Table{tbl})).Evaluate([]*match.MatchContext{
 		match.New(packet.New(
 			packet.WithSrcAddr("10.0.0.1"),
 			packet.WithDstAddr("1.1.1.1"),
