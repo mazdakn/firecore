@@ -18,16 +18,16 @@ func TestNew(t *testing.T) {
 	engine := New()
 	Expect(engine).ToNot(BeNil())
 	Expect(engine.Tables).To(BeNil())
-	Expect(engine.ConntrackEnabled).To(BeTrue())
+	Expect(engine.ConntrackEnabled).To(BeFalse())
 }
 
 func TestNewAppliesOptions(t *testing.T) {
 	RegisterTestingT(t)
 
-	engine := New(WithNoConnTrack())
+	engine := New(WithConntrack())
 
 	Expect(engine.Tables).To(BeNil())
-	Expect(engine.ConntrackEnabled).To(BeFalse())
+	Expect(engine.ConntrackEnabled).To(BeTrue())
 }
 
 func TestAddTable(t *testing.T) {
@@ -177,7 +177,7 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 		match.WithExpectedRule("allow-established"),
 	)
 
-	engine := New()
+	engine := New(WithConntrack())
 	engine.AddTable(stateful)
 
 	results := engine.Evaluate([]*match.MatchContext{request, reply})
@@ -191,7 +191,7 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 	Expect(results[1].RuleMatches()).To(BeTrue())
 }
 
-func TestEvaluateWithNoConnTrackDisablesStatefulMatching(t *testing.T) {
+func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 	RegisterTestingT(t)
 
 	stateful := table.New("stateful", 1, rule.Drop)
@@ -236,7 +236,7 @@ func TestEvaluateWithNoConnTrackDisablesStatefulMatching(t *testing.T) {
 		match.WithExpectedRule("table stateful default action"),
 	)
 
-	engine := New(WithNoConnTrack())
+	engine := New()
 	engine.AddTable(stateful)
 
 	results := engine.Evaluate([]*match.MatchContext{request, reply})

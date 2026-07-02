@@ -11,9 +11,9 @@ import (
 
 type Option func(*Engine)
 
-func WithNoConnTrack() Option {
+func WithConntrack() Option {
 	return func(e *Engine) {
-		e.ConntrackEnabled = false
+		e.ConntrackEnabled = true
 	}
 }
 
@@ -25,9 +25,7 @@ type Engine struct {
 }
 
 func New(opts ...Option) *Engine {
-	engine := &Engine{
-		ConntrackEnabled: true,
-	}
+	engine := &Engine{}
 	for _, opt := range opts {
 		opt(engine)
 	}

@@ -124,7 +124,7 @@ func TestFVStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	policy.AddChain(admin)
 	policy.SetEntryChain("entry")
 
-	engine := firecore.New()
+	engine := firecore.New(firecore.WithConntrack())
 	engine.AddTable(policy)
 
 	request := match.New(
