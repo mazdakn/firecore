@@ -15,7 +15,7 @@ import (
 func TestNew(t *testing.T) {
 	RegisterTestingT(t)
 
-	engine := New(nil)
+	engine := New()
 	Expect(engine).ToNot(BeNil())
 	Expect(engine.Tables).To(BeEmpty())
 	Expect(engine.ConntrackEnabled).To(BeTrue())
@@ -24,8 +24,10 @@ func TestNew(t *testing.T) {
 func TestNewAppliesOptions(t *testing.T) {
 	RegisterTestingT(t)
 
-	engine := New(nil, WithNoConnTrack())
+	tables := []*table.Table{table.New("filter", 1, rule.Drop)}
+	engine := New(WithTables(tables), WithNoConnTrack())
 
+	Expect(engine.Tables).To(Equal(tables))
 	Expect(engine.ConntrackEnabled).To(BeFalse())
 }
 
@@ -52,7 +54,7 @@ func TestRunPassesToNextTable(t *testing.T) {
 	))
 	acceptTable.AddChain(acceptChain)
 
-	results := New([]*table.Table{passTable, acceptTable}).Run([]*match.MatchContext{
+	results := New(WithTables([]*table.Table{passTable, acceptTable})).Run([]*match.MatchContext{
 		match.New(packet.New(
 			packet.WithSrcAddr("10.0.0.1"),
 			packet.WithDstAddr("1.1.1.1"),
@@ -114,7 +116,7 @@ func TestRunTracksEstablishedFlows(t *testing.T) {
 		match.WithExpectedRule("allow-established"),
 	)
 
-	results := New([]*table.Table{stateful}).Run([]*match.MatchContext{request, reply})
+	results := New(WithTables([]*table.Table{stateful})).Run([]*match.MatchContext{request, reply})
 
 	Expect(results).To(HaveLen(2))
 	Expect(results[0].ConnState).To(Equal(conntrack.StateNew))
@@ -170,7 +172,7 @@ func TestRunWithNoConnTrackDisablesStatefulMatching(t *testing.T) {
 		match.WithExpectedRule("table stateful default action"),
 	)
 
-	results := New([]*table.Table{stateful}, WithNoConnTrack()).Run([]*match.MatchContext{request, reply})
+	results := New(WithTables([]*table.Table{stateful}), WithNoConnTrack()).Run([]*match.MatchContext{request, reply})
 
 	Expect(results).To(HaveLen(2))
 	Expect(results[0].ConnState).To(Equal(conntrack.StateNew))
@@ -206,7 +208,7 @@ func TestRunSupportsJumpChains(t *testing.T) {
 	tbl.AddChain(admin)
 	tbl.SetEntryChain("entry")
 
-	results := New([]*table.Table{tbl}).Run([]*match.MatchContext{
+	results := New(WithTables([]*table.Table{tbl})).Run([]*match.MatchContext{
 		match.New(packet.New(
 			packet.WithSrcAddr("10.0.0.1"),
 			packet.WithDstAddr("1.1.1.1"),
