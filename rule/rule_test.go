@@ -176,6 +176,34 @@ func TestRuleMatchConditionsIncludeConntrackState(t *testing.T) {
 	Expect(r.MatchConditions()).To(ContainSubstring("ct_state=new,!established"))
 }
 
+func TestRulePayloadMatch(t *testing.T) {
+	RegisterTestingT(t)
+
+	r := New(WithPayload(`GET /admin`))
+
+	pktMatch := packet.New(packet.WithPayload([]byte("GET /admin HTTP/1.1")))
+	pktNoMatch := packet.New(packet.WithPayload([]byte("GET /public HTTP/1.1")))
+
+	Expect(r.Match(pktMatch)).To(BeTrue())
+	Expect(r.Match(pktNoMatch)).To(BeFalse())
+}
+
+func TestRulePayloadString(t *testing.T) {
+	RegisterTestingT(t)
+
+	r := New(WithAction(Accept), WithPayload(`GET /admin`))
+
+	Expect(r.String()).To(Equal(`Accept *{*:*->*:*} payload~="GET /admin"`))
+}
+
+func TestWithPayloadPanicsOnInvalidPattern(t *testing.T) {
+	RegisterTestingT(t)
+
+	Expect(func() {
+		New(WithPayload(`[`))
+	}).To(Panic())
+}
+
 func TestActionString(t *testing.T) {
 	RegisterTestingT(t)
 

@@ -3,11 +3,13 @@ package rule
 import (
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 
 	"github.com/mazdakn/firecore/conntrack"
 	"github.com/mazdakn/firecore/counter"
 	"github.com/mazdakn/firecore/packet"
+	"github.com/mazdakn/firecore/payload"
 	"github.com/mazdakn/firecore/proto"
 	"github.com/mazdakn/firecore/set"
 )
@@ -121,6 +123,16 @@ func WithNotConnState(state conntrack.State) RuleOption {
 func WithName(name string) RuleOption {
 	return func(r *Rule) {
 		r.Name = name
+	}
+}
+
+func WithPayload(pattern string) RuleOption {
+	return func(r *Rule) {
+		matcher, err := payload.New(pattern)
+		if err != nil {
+			panic(fmt.Sprintf("invalid payload regex %q: %v", pattern, err))
+		}
+		r.Payload = matcher
 	}
 }
 
@@ -424,6 +436,7 @@ type Rule struct {
 	NotProto       *set.ProtoSet
 	ConnState      []conntrack.State
 	NotConnState   []conntrack.State
+	Payload        *payload.Matcher
 
 	Action     Action
 	JumpTarget string // name of the chain to jump to when Action == Jump
@@ -439,10 +452,13 @@ func (r *Rule) MatchWithConntrackState(pkt *packet.Packet, state conntrack.State
 	if state == "" {
 		state = conntrack.StateNew
 	}
-	if len(r.ConnState) > 0 && !matchConnState(r.ConnState, state) {
+	if len(r.ConnState) > 0 && !slices.Contains(r.ConnState, state) {
 		return false
 	}
-	if len(r.NotConnState) > 0 && matchConnState(r.NotConnState, state) {
+	if len(r.NotConnState) > 0 && slices.Contains(r.NotConnState, state) {
+		return false
+	}
+	if r.Payload != nil && !r.Payload.Match(pkt.Payload) {
 		return false
 	}
 	if r.Proto != nil && !r.Proto.Match(pkt.Proto) {
@@ -642,16 +658,10 @@ func (r *Rule) MatchConditions() string {
 		connStates := formatConnStates(r.ConnState, r.NotConnState)
 		base += " ct_state=" + connStates
 	}
-	return base
-}
-
-func matchConnState(states []conntrack.State, state conntrack.State) bool {
-	for _, candidate := range states {
-		if candidate == state {
-			return true
-		}
+	if r.Payload != nil {
+		base += fmt.Sprintf(" payload~=%q", r.Payload.String())
 	}
-	return false
+	return base
 }
 
 func formatConnStates(states []conntrack.State, notStates []conntrack.State) string {

@@ -31,12 +31,11 @@ func New(opts ...Option) *Engine {
 
 func (e *Engine) AddTable(t *table.Table) {
 	e.Tables = append(e.Tables, t)
+	table.SortTables(e.Tables)
 }
 
 func (e *Engine) Evaluate(mc []*match.MatchContext) []*match.MatchContext {
 	results := make([]*match.MatchContext, 0, len(mc))
-
-	table.SortTables(e.Tables)
 
 	for _, mc := range mc {
 		if e.tracker != nil {
