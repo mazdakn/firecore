@@ -1,6 +1,7 @@
 package packet
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 
@@ -59,7 +60,7 @@ func WithEgressIface(iface string) PacketOption {
 
 func WithPayload(payload []byte) PacketOption {
 	return func(p *Packet) {
-		p.Payload = append([]byte(nil), payload...)
+		p.Payload = bytes.Clone(payload)
 	}
 }
 

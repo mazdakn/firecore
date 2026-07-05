@@ -19,21 +19,10 @@ func New(pattern string) (*Matcher, error) {
 	}, nil
 }
 
-func MustNew(pattern string) *Matcher {
-	m, err := New(pattern)
-	if err != nil {
-		panic(err)
-	}
-	return m
-}
-
 func (m *Matcher) Match(payload []byte) bool {
-	return m != nil && m.regex.Match(payload)
+	return m.regex.Match(payload)
 }
 
 func (m *Matcher) String() string {
-	if m == nil {
-		return ""
-	}
 	return m.pattern
 }

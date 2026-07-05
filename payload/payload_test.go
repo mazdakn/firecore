@@ -23,20 +23,12 @@ func TestNewInvalidPattern(t *testing.T) {
 	Expect(matcher).To(BeNil())
 }
 
-func TestMustNewPanicsOnInvalidPattern(t *testing.T) {
-	RegisterTestingT(t)
-
-	Expect(func() {
-		MustNew(`[`)
-	}).To(Panic())
-}
-
 func TestMatch(t *testing.T) {
 	RegisterTestingT(t)
 
-	matcher := MustNew(`secret=\w+`)
+	matcher, err := New(`secret=\w+`)
+	Expect(err).NotTo(HaveOccurred())
 
 	Expect(matcher.Match([]byte("GET /?secret=token"))).To(BeTrue())
 	Expect(matcher.Match([]byte("GET /?public=true"))).To(BeFalse())
-	Expect((*Matcher)(nil).Match([]byte("GET /?secret=token"))).To(BeFalse())
 }

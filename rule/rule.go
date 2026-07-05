@@ -3,6 +3,7 @@ package rule
 import (
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 
 	"github.com/mazdakn/firecore/conntrack"
@@ -451,10 +452,10 @@ func (r *Rule) MatchWithConntrackState(pkt *packet.Packet, state conntrack.State
 	if state == "" {
 		state = conntrack.StateNew
 	}
-	if len(r.ConnState) > 0 && !matchConnState(r.ConnState, state) {
+	if len(r.ConnState) > 0 && !slices.Contains(r.ConnState, state) {
 		return false
 	}
-	if len(r.NotConnState) > 0 && matchConnState(r.NotConnState, state) {
+	if len(r.NotConnState) > 0 && slices.Contains(r.NotConnState, state) {
 		return false
 	}
 	if r.Payload != nil && !r.Payload.Match(pkt.Payload) {
@@ -661,15 +662,6 @@ func (r *Rule) MatchConditions() string {
 		base += fmt.Sprintf(" payload~=%q", r.Payload.String())
 	}
 	return base
-}
-
-func matchConnState(states []conntrack.State, state conntrack.State) bool {
-	for _, candidate := range states {
-		if candidate == state {
-			return true
-		}
-	}
-	return false
 }
 
 func formatConnStates(states []conntrack.State, notStates []conntrack.State) string {
