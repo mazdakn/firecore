@@ -63,6 +63,19 @@ func TestNewEmpty(t *testing.T) {
 	Expect(pkt.Proto).To(Equal(proto.Proto(0)))
 	Expect(pkt.SrcPort).To(Equal(uint16(0)))
 	Expect(pkt.DstPort).To(Equal(uint16(0)))
+	Expect(pkt.Payload).To(BeNil())
+}
+
+func TestWithPayload(t *testing.T) {
+	RegisterTestingT(t)
+
+	original := []byte("GET /healthz HTTP/1.1")
+	pkt := New(WithPayload(original))
+
+	Expect(pkt.Payload).To(Equal([]byte("GET /healthz HTTP/1.1")))
+
+	original[0] = 'P'
+	Expect(pkt.Payload).To(Equal([]byte("GET /healthz HTTP/1.1")))
 }
 
 func TestWithProto(t *testing.T) {

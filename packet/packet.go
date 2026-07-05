@@ -57,6 +57,12 @@ func WithEgressIface(iface string) PacketOption {
 	}
 }
 
+func WithPayload(payload []byte) PacketOption {
+	return func(p *Packet) {
+		p.Payload = append([]byte(nil), payload...)
+	}
+}
+
 func New(opts ...PacketOption) *Packet {
 	p := Packet{
 		Metadata: NewMetadata(),
@@ -75,6 +81,8 @@ type Packet struct {
 
 	SrcPort uint16
 	DstPort uint16
+
+	Payload []byte
 
 	Metadata *Metadata
 }
