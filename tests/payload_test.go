@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	firecore "github.com/mazdakn/firecore"
-	"github.com/mazdakn/firecore/match"
+	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/proto"
 	"github.com/mazdakn/firecore/rule"
@@ -36,7 +36,7 @@ func TestPayloadRegexPolicy(t *testing.T) {
 	engine := firecore.New()
 	engine.AddTable(policy)
 
-	allowed := match.New(
+	allowed := eval.New(
 		packet.New(
 			packet.WithName("allowed-api-request"),
 			packet.WithSrcAddr("192.0.2.10"),
@@ -46,11 +46,9 @@ func TestPayloadRegexPolicy(t *testing.T) {
 			packet.WithDstPort(8443),
 			packet.WithPayload([]byte("GET /v1/data?api_key=test-123 HTTP/1.1")),
 		),
-		match.WithExpectedVerdict(accept),
-		match.WithExpectedRule("allow-api-key"),
 	)
 
-	blocked := match.New(
+	blocked := eval.New(
 		packet.New(
 			packet.WithName("blocked-api-request"),
 			packet.WithSrcAddr("192.0.2.11"),
@@ -60,20 +58,16 @@ func TestPayloadRegexPolicy(t *testing.T) {
 			packet.WithDstPort(8443),
 			packet.WithPayload([]byte("GET /v1/data HTTP/1.1")),
 		),
-		match.WithExpectedVerdict(rule.Drop),
-		match.WithExpectedRule("table payload-policy default action"),
 	)
 
-	results := engine.Evaluate([]*match.MatchContext{allowed, blocked})
+	results := engine.Evaluate([]*eval.Context{allowed, blocked})
 
 	Expect(results).To(HaveLen(2))
-	Expect(results[0].VerdictMatches()).To(BeTrue())
-	Expect(results[0].RuleMatches()).To(BeTrue())
+	expectMatchResult(results[0], accept, "allow-api-key")
 	Expect(results[0].Trace).To(HaveLen(1))
 	Expect(results[0].Trace[0].Name).To(Equal("allow-api-key"))
 
-	Expect(results[1].VerdictMatches()).To(BeTrue())
-	Expect(results[1].RuleMatches()).To(BeTrue())
+	expectMatchResult(results[1], rule.Drop, "table payload-policy default action")
 	Expect(results[1].Trace).To(HaveLen(2))
 	Expect(results[1].Trace[1].Name).To(Equal("table payload-policy default action"))
 

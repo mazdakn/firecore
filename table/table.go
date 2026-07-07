@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/mazdakn/firecore/match"
+	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/rule"
 	"github.com/sirupsen/logrus"
 )
@@ -56,14 +56,14 @@ func (t *Table) EntryChain() string {
 	return t.entryChain
 }
 
-func (t *Table) Match(mc *match.MatchContext) bool {
-	t.logCtx.Debugf("Matching packet %+v", mc.Packet)
+func (t *Table) Match(ctx *eval.Context, result *eval.Result) bool {
+	t.logCtx.Debugf("Matching packet %+v", ctx.Packet)
 	entry, ok := t.Chains[t.entryChain]
 	if ok {
-		result := entry.match(mc, t.Chains)
-		switch result {
+		matchResult := entry.match(ctx, result, t.Chains)
+		switch matchResult {
 		case chainDecided:
-			t.logCtx.Debugf("Chain determined verdict %s", mc.Verdict)
+			t.logCtx.Debugf("Chain determined verdict %s", result.Verdict)
 			return true
 		case chainPass:
 			t.logCtx.Debugf("Chain pass action, continuing to next table")
@@ -71,16 +71,16 @@ func (t *Table) Match(mc *match.MatchContext) bool {
 		}
 	}
 	// chainContinue: entry chain fell through
-	return t.MatchDefaultRule(mc)
+	return t.MatchDefaultRule(result)
 }
 
-func (t *Table) MatchDefaultRule(mc *match.MatchContext) bool {
+func (t *Table) MatchDefaultRule(result *eval.Result) bool {
 	if t.DefaultRule != nil {
 		t.logCtx.Debugf("No rule matched, using default action %v", t.DefaultRule.Action)
 		t.DefaultRule.IncrementPacketCount()
-		mc.Trace = append(mc.Trace, t.DefaultRule)
+		result.Trace = append(result.Trace, t.DefaultRule)
 		if t.DefaultRule.Action.IsTerminal() {
-			mc.Verdict = &t.DefaultRule.Action
+			result.Verdict = &t.DefaultRule.Action
 			return true
 		}
 		return false

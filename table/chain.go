@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/mazdakn/firecore/match"
+	"github.com/mazdakn/firecore/conntrack"
+	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/rule"
 )
 
@@ -47,21 +48,25 @@ func (c *Chain) AddRule(r *rule.Rule) {
 //
 // chains is the complete map of chains in the parent table, used to resolve
 // Jump targets. All evaluated rules (whether they match or not) are appended
-// to mc.Trace.
+// to result.Trace.
 //
 // Returns chainDecided if a terminal verdict (Accept/Drop) was set, chainPass
 // if a Pass action was triggered, or chainContinue if evaluation should return
 // to the calling context (Return action or no rule matched).
-func (c *Chain) match(mc *match.MatchContext, chains map[string]*Chain) chainMatchResult {
+func (c *Chain) match(ctx *eval.Context, result *eval.Result, chains map[string]*Chain) chainMatchResult {
+	var state conntrack.State
+	if ctx.ConnState != nil {
+		state = *ctx.ConnState
+	}
 	for _, r := range c.Rules {
-		mc.Trace = append(mc.Trace, r)
-		if r.MatchWithConntrackState(mc.Packet, mc.ConnState) {
+		result.Trace = append(result.Trace, r)
+		if r.MatchWithConntrackState(ctx.Packet, state) {
 			switch r.Action {
 			case rule.Accept, rule.Drop:
-				mc.Verdict = &r.Action
+				result.Verdict = &r.Action
 				return chainDecided
 			case rule.Pass:
-				mc.Verdict = &r.Action
+				result.Verdict = &r.Action
 				return chainPass
 			case rule.Return:
 				return chainContinue
@@ -70,9 +75,9 @@ func (c *Chain) match(mc *match.MatchContext, chains map[string]*Chain) chainMat
 				if !ok {
 					panic(fmt.Sprintf("chain %q not found", r.JumpTarget))
 				}
-				result := target.match(mc, chains)
-				if result != chainContinue {
-					return result
+				matchResult := target.match(ctx, result, chains)
+				if matchResult != chainContinue {
+					return matchResult
 				}
 				// Target chain returned without a verdict; continue evaluating
 				// the current chain at the next rule.

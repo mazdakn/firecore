@@ -2,7 +2,7 @@ package firecore
 
 import (
 	"github.com/mazdakn/firecore/conntrack"
-	"github.com/mazdakn/firecore/match"
+	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/rule"
 	"github.com/mazdakn/firecore/table"
 )
@@ -34,27 +34,31 @@ func (e *Engine) AddTable(t *table.Table) {
 	table.SortTables(e.Tables)
 }
 
-func (e *Engine) Evaluate(mc []*match.MatchContext) []*match.MatchContext {
-	results := make([]*match.MatchContext, 0, len(mc))
+func (e *Engine) Evaluate(contexts []*eval.Context) []*eval.Result {
+	results := make([]*eval.Result, 0, len(contexts))
 
-	for _, mc := range mc {
+	for _, ctx := range contexts {
+		result := &eval.Result{}
 		if e.tracker != nil {
-			mc.ConnState = e.tracker.Lookup(mc.Packet)
+			state := e.tracker.Lookup(ctx.Packet)
+			ctx.ConnState = &state
+		} else {
+			ctx.ConnState = nil
 		}
 		decided := false
 		for _, t := range e.Tables {
-			if t.Match(mc) {
+			if t.Match(ctx, result) {
 				decided = true
 				break
 			}
 		}
 		if !decided {
-			mc.Verdict = nil
+			result.Verdict = nil
 		}
-		if e.tracker != nil && mc.Verdict != nil && *mc.Verdict == rule.Accept {
-			e.tracker.CommitAccepted(mc.Packet)
+		if e.tracker != nil && result.Verdict != nil && *result.Verdict == rule.Accept {
+			e.tracker.CommitAccepted(ctx.Packet)
 		}
-		results = append(results, mc)
+		results = append(results, result)
 	}
 	return results
 }
