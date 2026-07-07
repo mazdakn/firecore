@@ -12,7 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestFVPayloadRegexPolicy(t *testing.T) {
+func TestPayloadRegexPolicy(t *testing.T) {
 	RegisterTestingT(t)
 
 	accept := mustParseAction(t, "accept")

@@ -63,7 +63,7 @@ func mustAddToSet(t *testing.T, s set.Set, value any) {
 	}
 }
 
-func TestFVStatefulPolicyAcrossPublicPackages(t *testing.T) {
+func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	RegisterTestingT(t)
 
 	accept := mustParseAction(t, "accept")
@@ -214,7 +214,7 @@ func TestFVStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	Expect(policy.DefaultRule.PacketCount()).To(Equal(uint64(1)))
 }
 
-func TestFVPassReturnAndOrderedTables(t *testing.T) {
+func TestPassReturnAndOrderedTables(t *testing.T) {
 	RegisterTestingT(t)
 
 	pass := mustParseAction(t, "pass")
