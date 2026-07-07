@@ -9,10 +9,13 @@ import (
 type Context struct {
 	Packet    *packet.Packet
 	ConnState *conntrack.State
-	Verdict   *rule.Action
-	Trace     []*rule.Rule
 }
 
 func New(pkt *packet.Packet) *Context {
 	return &Context{Packet: pkt}
+}
+
+type Result struct {
+	Verdict *rule.Action
+	Trace   []*rule.Rule
 }

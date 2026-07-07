@@ -12,10 +12,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func expectMatchResult(mc *eval.Context, expectedVerdict rule.Action, expectedRule string) {
-	Expect(mc.Verdict).To(HaveValue(Equal(expectedVerdict)))
-	Expect(mc.Trace).NotTo(BeEmpty())
-	Expect(mc.Trace[len(mc.Trace)-1].Name).To(Equal(expectedRule))
+func expectMatchResult(result *eval.Result, expectedVerdict rule.Action, expectedRule string) {
+	Expect(result.Verdict).To(HaveValue(Equal(expectedVerdict)))
+	Expect(result.Trace).NotTo(BeEmpty())
+	Expect(result.Trace[len(result.Trace)-1].Name).To(Equal(expectedRule))
 }
 
 func TestNew(t *testing.T) {
@@ -185,9 +185,9 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 	results := engine.Evaluate([]*eval.Context{request, reply})
 
 	Expect(results).To(HaveLen(2))
-	Expect(results[0].ConnState).To(HaveValue(Equal(conntrack.StateNew)))
+	Expect(request.ConnState).To(HaveValue(Equal(conntrack.StateNew)))
 	expectMatchResult(results[0], rule.Accept, "allow-new-http")
-	Expect(results[1].ConnState).To(HaveValue(Equal(conntrack.StateEstablished)))
+	Expect(reply.ConnState).To(HaveValue(Equal(conntrack.StateEstablished)))
 	expectMatchResult(results[1], rule.Accept, "allow-established")
 }
 
@@ -238,9 +238,9 @@ func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 	results := engine.Evaluate([]*eval.Context{request, reply})
 
 	Expect(results).To(HaveLen(2))
-	Expect(results[0].ConnState).To(BeNil())
+	Expect(request.ConnState).To(BeNil())
 	expectMatchResult(results[0], rule.Accept, "allow-new-http")
-	Expect(results[1].ConnState).To(BeNil())
+	Expect(reply.ConnState).To(BeNil())
 	expectMatchResult(results[1], rule.Drop, "table stateful default action")
 }
 

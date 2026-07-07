@@ -34,28 +34,31 @@ func (e *Engine) AddTable(t *table.Table) {
 	table.SortTables(e.Tables)
 }
 
-func (e *Engine) Evaluate(contexts []*eval.Context) []*eval.Context {
-	results := make([]*eval.Context, 0, len(contexts))
+func (e *Engine) Evaluate(contexts []*eval.Context) []*eval.Result {
+	results := make([]*eval.Result, 0, len(contexts))
 
 	for _, ctx := range contexts {
+		result := &eval.Result{}
 		if e.tracker != nil {
 			state := e.tracker.Lookup(ctx.Packet)
 			ctx.ConnState = &state
+		} else {
+			ctx.ConnState = nil
 		}
 		decided := false
 		for _, t := range e.Tables {
-			if t.Match(ctx) {
+			if t.Match(ctx, result) {
 				decided = true
 				break
 			}
 		}
 		if !decided {
-			ctx.Verdict = nil
+			result.Verdict = nil
 		}
-		if e.tracker != nil && ctx.Verdict != nil && *ctx.Verdict == rule.Accept {
+		if e.tracker != nil && result.Verdict != nil && *result.Verdict == rule.Accept {
 			e.tracker.CommitAccepted(ctx.Packet)
 		}
-		results = append(results, ctx)
+		results = append(results, result)
 	}
 	return results
 }

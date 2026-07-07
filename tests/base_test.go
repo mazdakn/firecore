@@ -15,10 +15,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func expectMatchResult(mc *eval.Context, expectedVerdict rule.Action, expectedRule string) {
-	Expect(mc.Verdict).To(HaveValue(Equal(expectedVerdict)))
-	Expect(mc.Trace).NotTo(BeEmpty())
-	Expect(mc.Trace[len(mc.Trace)-1].Name).To(Equal(expectedRule))
+func expectMatchResult(result *eval.Result, expectedVerdict rule.Action, expectedRule string) {
+	Expect(result.Verdict).To(HaveValue(Equal(expectedVerdict)))
+	Expect(result.Trace).NotTo(BeEmpty())
+	Expect(result.Trace[len(result.Trace)-1].Name).To(Equal(expectedRule))
 }
 
 func mustParseAction(t *testing.T, raw string) rule.Action {
@@ -180,19 +180,19 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	results := engine.Evaluate([]*eval.Context{request, reply, dnsQuery, outsider})
 
 	Expect(results).To(HaveLen(4))
-	Expect(results[0].ConnState).To(HaveValue(Equal(conntrack.StateNew)))
+	Expect(request.ConnState).To(HaveValue(Equal(conntrack.StateNew)))
 	expectMatchResult(results[0], accept, "allow-admin-web")
 	Expect(results[0].Trace).To(HaveLen(3))
 	Expect(results[0].Trace[0].Name).To(Equal("allow-established"))
 	Expect(results[0].Trace[1].Name).To(Equal("jump-admin"))
 	Expect(results[0].Trace[2].Name).To(Equal("allow-admin-web"))
 
-	Expect(results[1].ConnState).To(HaveValue(Equal(stateEstablished)))
+	Expect(reply.ConnState).To(HaveValue(Equal(stateEstablished)))
 	expectMatchResult(results[1], accept, "allow-established")
 	Expect(results[1].Trace).To(HaveLen(1))
 	Expect(results[1].Trace[0].Name).To(Equal("allow-established"))
 
-	Expect(results[2].ConnState).To(HaveValue(Equal(conntrack.StateNew)))
+	Expect(dnsQuery.ConnState).To(HaveValue(Equal(conntrack.StateNew)))
 	expectMatchResult(results[2], accept, "allow-public-dns")
 	Expect(results[2].Trace).To(HaveLen(3))
 	Expect(results[2].Trace[2].Name).To(Equal("allow-public-dns"))

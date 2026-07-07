@@ -87,8 +87,9 @@ func TestTableMatchUsesAscendingOrder(t *testing.T) {
 	tbl.AddChain(chain)
 
 	mc := eval.Context{Packet: pkt}
-	tbl.Match(&mc)
-	Expect(mc.Verdict).To(HaveValue(Equal(rule.Accept)))
+	result := &eval.Result{}
+	tbl.Match(&mc, result)
+	Expect(result.Verdict).To(HaveValue(Equal(rule.Accept)))
 }
 
 func TestTableMatchPassContinuesToNextTable(t *testing.T) {
@@ -110,12 +111,13 @@ func TestTableMatchPassContinuesToNextTable(t *testing.T) {
 	tbl.AddChain(chain)
 
 	mc := eval.Context{Packet: pkt}
-	matched := tbl.Match(&mc)
+	result := &eval.Result{}
+	matched := tbl.Match(&mc, result)
 
 	Expect(matched).To(BeFalse())
-	Expect(mc.Verdict).To(HaveValue(Equal(rule.Pass)))
-	Expect(mc.Trace).To(HaveLen(1))
-	Expect(mc.Trace[0].Name).To(Equal("pass-http"))
+	Expect(result.Verdict).To(HaveValue(Equal(rule.Pass)))
+	Expect(result.Trace).To(HaveLen(1))
+	Expect(result.Trace[0].Name).To(Equal("pass-http"))
 }
 
 func TestTableMatchPassRuleDoesNotEvaluateDefaultAction(t *testing.T) {
@@ -138,12 +140,13 @@ func TestTableMatchPassRuleDoesNotEvaluateDefaultAction(t *testing.T) {
 	tbl.AddChain(chain)
 
 	mc := eval.Context{Packet: pkt}
-	matched := tbl.Match(&mc)
+	result := &eval.Result{}
+	matched := tbl.Match(&mc, result)
 
 	Expect(matched).To(BeFalse())
-	Expect(mc.Verdict).To(HaveValue(Equal(rule.Pass)))
-	Expect(mc.Trace).To(HaveLen(1))
-	Expect(mc.Trace[0].Name).To(Equal("pass-http"))
+	Expect(result.Verdict).To(HaveValue(Equal(rule.Pass)))
+	Expect(result.Trace).To(HaveLen(1))
+	Expect(result.Trace[0].Name).To(Equal("pass-http"))
 }
 
 func TestTableMatchNoRuleAndDefaultPassReturnsNoMatchVerdict(t *testing.T) {
@@ -161,13 +164,14 @@ func TestTableMatchNoRuleAndDefaultPassReturnsNoMatchVerdict(t *testing.T) {
 	)
 
 	mc := eval.Context{Packet: pkt}
-	matched := tbl.Match(&mc)
+	result := &eval.Result{}
+	matched := tbl.Match(&mc, result)
 
 	Expect(matched).To(BeFalse())
-	Expect(mc.Verdict).To(BeNil())
-	Expect(mc.Trace).To(HaveLen(1))
-	Expect(mc.Trace[0].Name).To(Equal("table test default action"))
-	Expect(mc.Trace[0].Action).To(Equal(rule.Pass))
+	Expect(result.Verdict).To(BeNil())
+	Expect(result.Trace).To(HaveLen(1))
+	Expect(result.Trace[0].Name).To(Equal("table test default action"))
+	Expect(result.Trace[0].Action).To(Equal(rule.Pass))
 }
 
 func TestTableJumpToChainAndReturn(t *testing.T) {
@@ -198,13 +202,14 @@ func TestTableJumpToChainAndReturn(t *testing.T) {
 	tbl.AddChain(helperChain)
 
 	mc := eval.Context{Packet: pkt}
-	matched := tbl.Match(&mc)
+	result := &eval.Result{}
+	matched := tbl.Match(&mc, result)
 
 	Expect(matched).To(BeTrue())
-	Expect(mc.Verdict).To(HaveValue(Equal(rule.Accept)))
-	Expect(mc.Trace).To(HaveLen(2))
-	Expect(mc.Trace[0].Name).To(Equal("jump-to-helper"))
-	Expect(mc.Trace[1].Name).To(Equal("accept-http"))
+	Expect(result.Verdict).To(HaveValue(Equal(rule.Accept)))
+	Expect(result.Trace).To(HaveLen(2))
+	Expect(result.Trace[0].Name).To(Equal("jump-to-helper"))
+	Expect(result.Trace[1].Name).To(Equal("accept-http"))
 }
 
 func TestTableJumpChainNoMatchReturnsToCaller(t *testing.T) {
@@ -235,11 +240,12 @@ func TestTableJumpChainNoMatchReturnsToCaller(t *testing.T) {
 	tbl.AddChain(helperChain)
 
 	mc := eval.Context{Packet: pkt}
-	matched := tbl.Match(&mc)
+	result := &eval.Result{}
+	matched := tbl.Match(&mc, result)
 
 	// helper chain returned, entry chain fell through → default Drop
 	Expect(matched).To(BeTrue())
-	Expect(mc.Verdict).To(HaveValue(Equal(rule.Drop)))
+	Expect(result.Verdict).To(HaveValue(Equal(rule.Drop)))
 }
 
 func TestTableMatchNilDefaultRuleReturnsNoMatch(t *testing.T) {
@@ -258,11 +264,12 @@ func TestTableMatchNilDefaultRuleReturnsNoMatch(t *testing.T) {
 	)
 
 	mc := eval.Context{Packet: pkt}
-	matched := tbl.Match(&mc)
+	result := &eval.Result{}
+	matched := tbl.Match(&mc, result)
 
 	Expect(matched).To(BeFalse())
-	Expect(mc.Verdict).To(BeNil())
-	Expect(mc.Trace).To(BeEmpty())
+	Expect(result.Verdict).To(BeNil())
+	Expect(result.Trace).To(BeEmpty())
 }
 
 func TestTableReturnActionReturnsToCallerChain(t *testing.T) {
@@ -294,10 +301,11 @@ func TestTableReturnActionReturnsToCallerChain(t *testing.T) {
 	tbl.AddChain(helperChain)
 
 	mc := eval.Context{Packet: pkt}
-	matched := tbl.Match(&mc)
+	result := &eval.Result{}
+	matched := tbl.Match(&mc, result)
 
 	// Return in helper → continues in main after jump-to-helper → accept-all
 	Expect(matched).To(BeTrue())
-	Expect(mc.Verdict).To(HaveValue(Equal(rule.Accept)))
-	Expect(mc.Trace[len(mc.Trace)-1].Name).To(Equal("accept-all"))
+	Expect(result.Verdict).To(HaveValue(Equal(rule.Accept)))
+	Expect(result.Trace[len(result.Trace)-1].Name).To(Equal("accept-all"))
 }
