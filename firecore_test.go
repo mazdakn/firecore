@@ -4,13 +4,19 @@ import (
 	"testing"
 
 	"github.com/mazdakn/firecore/conntrack"
-	"github.com/mazdakn/firecore/match"
+	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/proto"
 	"github.com/mazdakn/firecore/rule"
 	"github.com/mazdakn/firecore/table"
 	. "github.com/onsi/gomega"
 )
+
+func expectMatchResult(mc *eval.Context, expectedVerdict rule.Action, expectedRule string) {
+	Expect(mc.Verdict).To(HaveValue(Equal(expectedVerdict)))
+	Expect(mc.Trace).NotTo(BeEmpty())
+	Expect(mc.Trace[len(mc.Trace)-1].Name).To(Equal(expectedRule))
+}
 
 func TestNew(t *testing.T) {
 	RegisterTestingT(t)
@@ -70,8 +76,8 @@ func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 	engine.AddTable(acceptTable)
 	engine.AddTable(passTable)
 
-	results := engine.Evaluate([]*match.MatchContext{
-		match.New(packet.New(
+	results := engine.Evaluate([]*eval.Context{
+		eval.New(packet.New(
 			packet.WithSrcAddr("10.0.0.1"),
 			packet.WithDstAddr("1.1.1.1"),
 			packet.WithProto(proto.TCP),
@@ -115,8 +121,8 @@ func TestEvaluatePassesToNextTable(t *testing.T) {
 	engine.AddTable(passTable)
 	engine.AddTable(acceptTable)
 
-	results := engine.Evaluate([]*match.MatchContext{
-		match.New(packet.New(
+	results := engine.Evaluate([]*eval.Context{
+		eval.New(packet.New(
 			packet.WithSrcAddr("10.0.0.1"),
 			packet.WithDstAddr("1.1.1.1"),
 			packet.WithProto(proto.TCP),
@@ -152,7 +158,7 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 	))
 	stateful.AddChain(defaultChain)
 
-	request := match.New(
+	request := eval.New(
 		packet.New(
 			packet.WithName("request"),
 			packet.WithSrcAddr("10.0.0.1"),
@@ -161,10 +167,8 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 			packet.WithSrcPort(12345),
 			packet.WithDstPort(80),
 		),
-		match.WithExpectedVerdict(rule.Accept),
-		match.WithExpectedRule("allow-new-http"),
 	)
-	reply := match.New(
+	reply := eval.New(
 		packet.New(
 			packet.WithName("reply"),
 			packet.WithSrcAddr("1.1.1.1"),
@@ -173,22 +177,18 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 			packet.WithSrcPort(80),
 			packet.WithDstPort(12345),
 		),
-		match.WithExpectedVerdict(rule.Accept),
-		match.WithExpectedRule("allow-established"),
 	)
 
 	engine := New(WithConntrack())
 	engine.AddTable(stateful)
 
-	results := engine.Evaluate([]*match.MatchContext{request, reply})
+	results := engine.Evaluate([]*eval.Context{request, reply})
 
 	Expect(results).To(HaveLen(2))
-	Expect(results[0].ConnState).To(Equal(conntrack.StateNew))
-	Expect(results[0].VerdictMatches()).To(BeTrue())
-	Expect(results[0].RuleMatches()).To(BeTrue())
-	Expect(results[1].ConnState).To(Equal(conntrack.StateEstablished))
-	Expect(results[1].VerdictMatches()).To(BeTrue())
-	Expect(results[1].RuleMatches()).To(BeTrue())
+	Expect(results[0].ConnState).To(HaveValue(Equal(conntrack.StateNew)))
+	expectMatchResult(results[0], rule.Accept, "allow-new-http")
+	Expect(results[1].ConnState).To(HaveValue(Equal(conntrack.StateEstablished)))
+	expectMatchResult(results[1], rule.Accept, "allow-established")
 }
 
 func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
@@ -211,7 +211,7 @@ func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 	))
 	stateful.AddChain(defaultChain)
 
-	request := match.New(
+	request := eval.New(
 		packet.New(
 			packet.WithName("request"),
 			packet.WithSrcAddr("10.0.0.1"),
@@ -220,10 +220,8 @@ func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 			packet.WithSrcPort(12345),
 			packet.WithDstPort(80),
 		),
-		match.WithExpectedVerdict(rule.Accept),
-		match.WithExpectedRule("allow-new-http"),
 	)
-	reply := match.New(
+	reply := eval.New(
 		packet.New(
 			packet.WithName("reply"),
 			packet.WithSrcAddr("1.1.1.1"),
@@ -232,22 +230,18 @@ func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 			packet.WithSrcPort(80),
 			packet.WithDstPort(12345),
 		),
-		match.WithExpectedVerdict(rule.Drop),
-		match.WithExpectedRule("table stateful default action"),
 	)
 
 	engine := New()
 	engine.AddTable(stateful)
 
-	results := engine.Evaluate([]*match.MatchContext{request, reply})
+	results := engine.Evaluate([]*eval.Context{request, reply})
 
 	Expect(results).To(HaveLen(2))
-	Expect(results[0].ConnState).To(Equal(conntrack.StateNew))
-	Expect(results[0].VerdictMatches()).To(BeTrue())
-	Expect(results[0].RuleMatches()).To(BeTrue())
-	Expect(results[1].ConnState).To(Equal(conntrack.StateNew))
-	Expect(results[1].VerdictMatches()).To(BeTrue())
-	Expect(results[1].RuleMatches()).To(BeTrue())
+	Expect(results[0].ConnState).To(BeNil())
+	expectMatchResult(results[0], rule.Accept, "allow-new-http")
+	Expect(results[1].ConnState).To(BeNil())
+	expectMatchResult(results[1], rule.Drop, "table stateful default action")
 }
 
 func TestEvaluateSupportsJumpChains(t *testing.T) {
@@ -278,8 +272,8 @@ func TestEvaluateSupportsJumpChains(t *testing.T) {
 	engine := New()
 	engine.AddTable(tbl)
 
-	results := engine.Evaluate([]*match.MatchContext{
-		match.New(packet.New(
+	results := engine.Evaluate([]*eval.Context{
+		eval.New(packet.New(
 			packet.WithSrcAddr("10.0.0.1"),
 			packet.WithDstAddr("1.1.1.1"),
 			packet.WithProto(proto.TCP),

@@ -5,7 +5,7 @@ import (
 
 	firecore "github.com/mazdakn/firecore"
 	"github.com/mazdakn/firecore/conntrack"
-	"github.com/mazdakn/firecore/match"
+	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/port"
 	"github.com/mazdakn/firecore/proto"
@@ -14,6 +14,12 @@ import (
 	"github.com/mazdakn/firecore/table"
 	. "github.com/onsi/gomega"
 )
+
+func expectMatchResult(mc *eval.Context, expectedVerdict rule.Action, expectedRule string) {
+	Expect(mc.Verdict).To(HaveValue(Equal(expectedVerdict)))
+	Expect(mc.Trace).NotTo(BeEmpty())
+	Expect(mc.Trace[len(mc.Trace)-1].Name).To(Equal(expectedRule))
+}
 
 func mustParseAction(t *testing.T, raw string) rule.Action {
 	t.Helper()
@@ -127,7 +133,7 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	engine := firecore.New(firecore.WithConntrack())
 	engine.AddTable(policy)
 
-	request := match.New(
+	request := eval.New(
 		packet.New(
 			packet.WithName("admin-request"),
 			packet.WithSrcAddr("10.1.2.3"),
@@ -137,10 +143,8 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 			packet.WithSrcPort(42424),
 			packet.WithDstPort(https.Resolve()),
 		),
-		match.WithExpectedVerdict(accept),
-		match.WithExpectedRule("allow-admin-web"),
 	)
-	reply := match.New(
+	reply := eval.New(
 		packet.New(
 			packet.WithName("admin-reply"),
 			packet.WithSrcAddr("172.16.0.10"),
@@ -150,10 +154,8 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 			packet.WithSrcPort(https.Resolve()),
 			packet.WithDstPort(42424),
 		),
-		match.WithExpectedVerdict(accept),
-		match.WithExpectedRule("allow-established"),
 	)
-	dnsQuery := match.New(
+	dnsQuery := eval.New(
 		packet.New(
 			packet.WithName("dns-query"),
 			packet.WithSrcAddr("192.0.2.10"),
@@ -162,10 +164,8 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 			packet.WithSrcPort(53000),
 			packet.WithDstPort(53),
 		),
-		match.WithExpectedVerdict(accept),
-		match.WithExpectedRule("allow-public-dns"),
 	)
-	outsider := match.New(
+	outsider := eval.New(
 		packet.New(
 			packet.WithName("outsider"),
 			packet.WithSrcAddr("192.0.2.11"),
@@ -175,35 +175,29 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 			packet.WithSrcPort(41000),
 			packet.WithDstPort(443),
 		),
-		match.WithExpectedVerdict(rule.Drop),
-		match.WithExpectedRule("table policy default action"),
 	)
 
-	results := engine.Evaluate([]*match.MatchContext{request, reply, dnsQuery, outsider})
+	results := engine.Evaluate([]*eval.Context{request, reply, dnsQuery, outsider})
 
 	Expect(results).To(HaveLen(4))
-	Expect(results[0].ConnState).To(Equal(conntrack.StateNew))
-	Expect(results[0].VerdictMatches()).To(BeTrue())
-	Expect(results[0].RuleMatches()).To(BeTrue())
+	Expect(results[0].ConnState).To(HaveValue(Equal(conntrack.StateNew)))
+	expectMatchResult(results[0], accept, "allow-admin-web")
 	Expect(results[0].Trace).To(HaveLen(3))
 	Expect(results[0].Trace[0].Name).To(Equal("allow-established"))
 	Expect(results[0].Trace[1].Name).To(Equal("jump-admin"))
 	Expect(results[0].Trace[2].Name).To(Equal("allow-admin-web"))
 
-	Expect(results[1].ConnState).To(Equal(stateEstablished))
-	Expect(results[1].VerdictMatches()).To(BeTrue())
-	Expect(results[1].RuleMatches()).To(BeTrue())
+	Expect(results[1].ConnState).To(HaveValue(Equal(stateEstablished)))
+	expectMatchResult(results[1], accept, "allow-established")
 	Expect(results[1].Trace).To(HaveLen(1))
 	Expect(results[1].Trace[0].Name).To(Equal("allow-established"))
 
-	Expect(results[2].ConnState).To(Equal(conntrack.StateNew))
-	Expect(results[2].VerdictMatches()).To(BeTrue())
-	Expect(results[2].RuleMatches()).To(BeTrue())
+	Expect(results[2].ConnState).To(HaveValue(Equal(conntrack.StateNew)))
+	expectMatchResult(results[2], accept, "allow-public-dns")
 	Expect(results[2].Trace).To(HaveLen(3))
 	Expect(results[2].Trace[2].Name).To(Equal("allow-public-dns"))
 
-	Expect(results[3].VerdictMatches()).To(BeTrue())
-	Expect(results[3].RuleMatches()).To(BeTrue())
+	expectMatchResult(results[3], rule.Drop, "table policy default action")
 	Expect(results[3].Trace).To(HaveLen(4))
 	Expect(results[3].Trace[3].Name).To(Equal("table policy default action"))
 
@@ -269,7 +263,7 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 	engine.AddTable(classify)
 	engine.AddTable(policy)
 
-	context := match.New(
+	ctx := eval.New(
 		packet.New(
 			packet.WithSrcAddr("192.0.2.25"),
 			packet.WithDstAddr("198.51.100.10"),
@@ -277,15 +271,12 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 			packet.WithSrcPort(45000),
 			packet.WithDstPort(appPort.Resolve()),
 		),
-		match.WithExpectedVerdict(accept),
-		match.WithExpectedRule("allow-trusted-app"),
 	)
 
-	results := engine.Evaluate([]*match.MatchContext{context})
+	results := engine.Evaluate([]*eval.Context{ctx})
 
 	Expect(results).To(HaveLen(1))
-	Expect(results[0].VerdictMatches()).To(BeTrue())
-	Expect(results[0].RuleMatches()).To(BeTrue())
+	expectMatchResult(results[0], accept, "allow-trusted-app")
 	Expect(results[0].Trace).To(HaveLen(4))
 	Expect(results[0].Trace[0].Name).To(Equal("jump-review"))
 	Expect(results[0].Trace[1].Name).To(Equal("return-to-entry"))

@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/mazdakn/firecore/match"
+	"github.com/mazdakn/firecore/conntrack"
+	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/rule"
 )
 
@@ -52,10 +53,14 @@ func (c *Chain) AddRule(r *rule.Rule) {
 // Returns chainDecided if a terminal verdict (Accept/Drop) was set, chainPass
 // if a Pass action was triggered, or chainContinue if evaluation should return
 // to the calling context (Return action or no rule matched).
-func (c *Chain) match(mc *match.MatchContext, chains map[string]*Chain) chainMatchResult {
+func (c *Chain) match(mc *eval.Context, chains map[string]*Chain) chainMatchResult {
+	var state conntrack.State
+	if mc.ConnState != nil {
+		state = *mc.ConnState
+	}
 	for _, r := range c.Rules {
 		mc.Trace = append(mc.Trace, r)
-		if r.MatchWithConntrackState(mc.Packet, mc.ConnState) {
+		if r.MatchWithConntrackState(mc.Packet, state) {
 			switch r.Action {
 			case rule.Accept, rule.Drop:
 				mc.Verdict = &r.Action

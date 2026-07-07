@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/mazdakn/firecore/match"
+	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/rule"
 	"github.com/sirupsen/logrus"
 )
@@ -56,7 +56,7 @@ func (t *Table) EntryChain() string {
 	return t.entryChain
 }
 
-func (t *Table) Match(mc *match.MatchContext) bool {
+func (t *Table) Match(mc *eval.Context) bool {
 	t.logCtx.Debugf("Matching packet %+v", mc.Packet)
 	entry, ok := t.Chains[t.entryChain]
 	if ok {
@@ -74,7 +74,7 @@ func (t *Table) Match(mc *match.MatchContext) bool {
 	return t.MatchDefaultRule(mc)
 }
 
-func (t *Table) MatchDefaultRule(mc *match.MatchContext) bool {
+func (t *Table) MatchDefaultRule(mc *eval.Context) bool {
 	if t.DefaultRule != nil {
 		t.logCtx.Debugf("No rule matched, using default action %v", t.DefaultRule.Action)
 		t.DefaultRule.IncrementPacketCount()

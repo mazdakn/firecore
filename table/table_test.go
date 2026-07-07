@@ -3,7 +3,7 @@ package table
 import (
 	"testing"
 
-	"github.com/mazdakn/firecore/match"
+	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/rule"
 	. "github.com/onsi/gomega"
@@ -86,7 +86,7 @@ func TestTableMatchUsesAscendingOrder(t *testing.T) {
 	chain.AddRule(lowOrderAccept)
 	tbl.AddChain(chain)
 
-	mc := match.MatchContext{Packet: pkt}
+	mc := eval.Context{Packet: pkt}
 	tbl.Match(&mc)
 	Expect(mc.Verdict).To(HaveValue(Equal(rule.Accept)))
 }
@@ -109,7 +109,7 @@ func TestTableMatchPassContinuesToNextTable(t *testing.T) {
 	chain.AddRule(passRule)
 	tbl.AddChain(chain)
 
-	mc := match.MatchContext{Packet: pkt}
+	mc := eval.Context{Packet: pkt}
 	matched := tbl.Match(&mc)
 
 	Expect(matched).To(BeFalse())
@@ -137,7 +137,7 @@ func TestTableMatchPassRuleDoesNotEvaluateDefaultAction(t *testing.T) {
 	chain.AddRule(passRule)
 	tbl.AddChain(chain)
 
-	mc := match.MatchContext{Packet: pkt}
+	mc := eval.Context{Packet: pkt}
 	matched := tbl.Match(&mc)
 
 	Expect(matched).To(BeFalse())
@@ -160,7 +160,7 @@ func TestTableMatchNoRuleAndDefaultPassReturnsNoMatchVerdict(t *testing.T) {
 		packet.WithDstPort(80),
 	)
 
-	mc := match.MatchContext{Packet: pkt}
+	mc := eval.Context{Packet: pkt}
 	matched := tbl.Match(&mc)
 
 	Expect(matched).To(BeFalse())
@@ -197,7 +197,7 @@ func TestTableJumpToChainAndReturn(t *testing.T) {
 	tbl.AddChain(mainChain)
 	tbl.AddChain(helperChain)
 
-	mc := match.MatchContext{Packet: pkt}
+	mc := eval.Context{Packet: pkt}
 	matched := tbl.Match(&mc)
 
 	Expect(matched).To(BeTrue())
@@ -234,7 +234,7 @@ func TestTableJumpChainNoMatchReturnsToCaller(t *testing.T) {
 	tbl.AddChain(mainChain)
 	tbl.AddChain(helperChain)
 
-	mc := match.MatchContext{Packet: pkt}
+	mc := eval.Context{Packet: pkt}
 	matched := tbl.Match(&mc)
 
 	// helper chain returned, entry chain fell through → default Drop
@@ -257,7 +257,7 @@ func TestTableMatchNilDefaultRuleReturnsNoMatch(t *testing.T) {
 		packet.WithDstPort(80),
 	)
 
-	mc := match.MatchContext{Packet: pkt}
+	mc := eval.Context{Packet: pkt}
 	matched := tbl.Match(&mc)
 
 	Expect(matched).To(BeFalse())
@@ -293,7 +293,7 @@ func TestTableReturnActionReturnsToCallerChain(t *testing.T) {
 	tbl.AddChain(mainChain)
 	tbl.AddChain(helperChain)
 
-	mc := match.MatchContext{Packet: pkt}
+	mc := eval.Context{Packet: pkt}
 	matched := tbl.Match(&mc)
 
 	// Return in helper → continues in main after jump-to-helper → accept-all
