@@ -1,6 +1,8 @@
 package firecore
 
 import (
+	"fmt"
+
 	"github.com/mazdakn/firecore/conntrack"
 	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/rule"
@@ -34,10 +36,17 @@ func (e *Engine) AddTable(t *table.Table) {
 	table.SortTables(e.Tables)
 }
 
-func (e *Engine) Evaluate(contexts []*eval.Context) []*eval.Result {
+func (e *Engine) Evaluate(contexts []*eval.Context) ([]*eval.Result, error) {
 	results := make([]*eval.Result, 0, len(contexts))
 
-	for _, ctx := range contexts {
+	for i, ctx := range contexts {
+		if ctx == nil {
+			return nil, fmt.Errorf("evaluate context %d: nil context", i)
+		}
+		if ctx.Packet == nil {
+			return nil, fmt.Errorf("evaluate context %d: nil packet", i)
+		}
+
 		result := &eval.Result{}
 		if e.tracker != nil {
 			state := e.tracker.Lookup(ctx.Packet)
@@ -47,7 +56,11 @@ func (e *Engine) Evaluate(contexts []*eval.Context) []*eval.Result {
 		}
 		decided := false
 		for _, t := range e.Tables {
-			if t.Match(ctx, result) {
+			matched, err := t.Match(ctx, result)
+			if err != nil {
+				return nil, fmt.Errorf("evaluate context %d in table %q: %w", i, t.Name, err)
+			}
+			if matched {
 				decided = true
 				break
 			}
@@ -60,5 +73,5 @@ func (e *Engine) Evaluate(contexts []*eval.Context) []*eval.Result {
 		}
 		results = append(results, result)
 	}
-	return results
+	return results, nil
 }

@@ -53,7 +53,7 @@ func (c *Chain) AddRule(r *rule.Rule) {
 // Returns chainDecided if a terminal verdict (Accept/Drop) was set, chainPass
 // if a Pass action was triggered, or chainContinue if evaluation should return
 // to the calling context (Return action or no rule matched).
-func (c *Chain) match(ctx *eval.Context, result *eval.Result, chains map[string]*Chain) chainMatchResult {
+func (c *Chain) match(ctx *eval.Context, result *eval.Result, chains map[string]*Chain) (chainMatchResult, error) {
 	var state conntrack.State
 	if ctx.ConnState != nil {
 		state = *ctx.ConnState
@@ -64,25 +64,28 @@ func (c *Chain) match(ctx *eval.Context, result *eval.Result, chains map[string]
 			switch r.Action {
 			case rule.Accept, rule.Drop:
 				result.Verdict = &r.Action
-				return chainDecided
+				return chainDecided, nil
 			case rule.Pass:
 				result.Verdict = &r.Action
-				return chainPass
+				return chainPass, nil
 			case rule.Return:
-				return chainContinue
+				return chainContinue, nil
 			case rule.Jump:
 				target, ok := chains[r.JumpTarget]
 				if !ok {
-					panic(fmt.Sprintf("chain %q not found", r.JumpTarget))
+					return chainContinue, fmt.Errorf("chain %q not found", r.JumpTarget)
 				}
-				matchResult := target.match(ctx, result, chains)
+				matchResult, err := target.match(ctx, result, chains)
+				if err != nil {
+					return chainContinue, err
+				}
 				if matchResult != chainContinue {
-					return matchResult
+					return matchResult, nil
 				}
 				// Target chain returned without a verdict; continue evaluating
 				// the current chain at the next rule.
 			}
 		}
 	}
-	return chainContinue
+	return chainContinue, nil
 }

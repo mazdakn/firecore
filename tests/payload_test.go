@@ -60,8 +60,9 @@ func TestPayloadRegexPolicy(t *testing.T) {
 		),
 	)
 
-	results := engine.Evaluate([]*eval.Context{allowed, blocked})
+	results, err := engine.Evaluate([]*eval.Context{allowed, blocked})
 
+	Expect(err).NotTo(HaveOccurred())
 	Expect(results).To(HaveLen(2))
 	expectMatchResult(results[0], accept, "allow-api-key")
 	Expect(results[0].Trace).To(HaveLen(1))
