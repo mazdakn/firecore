@@ -6,7 +6,6 @@ import (
 
 	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/rule"
-	"github.com/sirupsen/logrus"
 )
 
 // Table holds chains of firewall rules. Rules are accessed only via chains;
@@ -17,7 +16,6 @@ type Table struct {
 	Chains      map[string]*Chain
 	entryChain  string
 	DefaultRule *rule.Rule
-	logCtx      *logrus.Entry
 }
 
 func New(name string, order uint64, defaultAction rule.Action) *Table {
@@ -29,10 +27,6 @@ func New(name string, order uint64, defaultAction rule.Action) *Table {
 			rule.WithAction(defaultAction),
 			rule.WithName(fmt.Sprintf("table %s default action", name)),
 		),
-		logCtx: logrus.WithFields(logrus.Fields{
-			"name":          name,
-			"defaultAction": defaultAction,
-		}),
 	}
 }
 
@@ -56,27 +50,36 @@ func (t *Table) EntryChain() string {
 	return t.entryChain
 }
 
-func (t *Table) Match(ctx *eval.Context, result *eval.Result) bool {
-	t.logCtx.Debugf("Matching packet %+v", ctx.Packet)
+func (t *Table) Match(ctx *eval.Context, result *eval.Result) (bool, error) {
+	if ctx == nil {
+		return false, fmt.Errorf("nil context")
+	}
+	if ctx.Packet == nil {
+		return false, fmt.Errorf("nil packet")
+	}
+	if result == nil {
+		return false, fmt.Errorf("nil result")
+	}
+
 	entry, ok := t.Chains[t.entryChain]
 	if ok {
-		matchResult := entry.match(ctx, result, t.Chains)
+		matchResult, err := entry.match(ctx, result, t.Chains)
+		if err != nil {
+			return false, err
+		}
 		switch matchResult {
 		case chainDecided:
-			t.logCtx.Debugf("Chain determined verdict %s", result.Verdict)
-			return true
+			return true, nil
 		case chainPass:
-			t.logCtx.Debugf("Chain pass action, continuing to next table")
-			return false
+			return false, nil
 		}
 	}
 	// chainContinue: entry chain fell through
-	return t.MatchDefaultRule(result)
+	return t.MatchDefaultRule(result), nil
 }
 
 func (t *Table) MatchDefaultRule(result *eval.Result) bool {
 	if t.DefaultRule != nil {
-		t.logCtx.Debugf("No rule matched, using default action %v", t.DefaultRule.Action)
 		t.DefaultRule.IncrementPacketCount()
 		result.Trace = append(result.Trace, t.DefaultRule)
 		if t.DefaultRule.Action.IsTerminal() {
@@ -85,7 +88,6 @@ func (t *Table) MatchDefaultRule(result *eval.Result) bool {
 		}
 		return false
 	}
-	t.logCtx.Debugf("No rule matched and no default rule set")
 	return false
 }
 

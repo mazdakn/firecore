@@ -177,8 +177,9 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 		),
 	)
 
-	results := engine.Evaluate([]*eval.Context{request, reply, dnsQuery, outsider})
+	results, err := engine.Evaluate([]*eval.Context{request, reply, dnsQuery, outsider})
 
+	Expect(err).NotTo(HaveOccurred())
 	Expect(results).To(HaveLen(4))
 	Expect(request.ConnState).To(HaveValue(Equal(conntrack.StateNew)))
 	expectMatchResult(results[0], accept, "allow-admin-web")
@@ -273,8 +274,9 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 		),
 	)
 
-	results := engine.Evaluate([]*eval.Context{ctx})
+	results, err := engine.Evaluate([]*eval.Context{ctx})
 
+	Expect(err).NotTo(HaveOccurred())
 	Expect(results).To(HaveLen(1))
 	expectMatchResult(results[0], accept, "allow-trusted-app")
 	Expect(results[0].Trace).To(HaveLen(4))
