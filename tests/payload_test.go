@@ -60,17 +60,18 @@ func TestPayloadRegexPolicy(t *testing.T) {
 		),
 	)
 
-	results, err := engine.Evaluate([]*eval.Context{allowed, blocked})
+	allowedResult, err := engine.Evaluate(allowed)
+	Expect(err).NotTo(HaveOccurred())
+	blockedResult, err := engine.Evaluate(blocked)
 
 	Expect(err).NotTo(HaveOccurred())
-	Expect(results).To(HaveLen(2))
-	expectMatchResult(results[0], accept, "allow-api-key")
-	Expect(results[0].Trace).To(HaveLen(1))
-	Expect(results[0].Trace[0].Name).To(Equal("allow-api-key"))
+	expectMatchResult(allowedResult, accept, "allow-api-key")
+	Expect(allowedResult.Trace).To(HaveLen(1))
+	Expect(allowedResult.Trace[0].Name).To(Equal("allow-api-key"))
 
-	expectMatchResult(results[1], rule.Drop, "table payload-policy default action")
-	Expect(results[1].Trace).To(HaveLen(2))
-	Expect(results[1].Trace[1].Name).To(Equal("table payload-policy default action"))
+	expectMatchResult(blockedResult, rule.Drop, "table payload-policy default action")
+	Expect(blockedResult.Trace).To(HaveLen(2))
+	Expect(blockedResult.Trace[1].Name).To(Equal("table payload-policy default action"))
 
 	Expect(allowAPIKey.PacketCount()).To(Equal(uint64(1)))
 	Expect(policy.DefaultRule.PacketCount()).To(Equal(uint64(1)))

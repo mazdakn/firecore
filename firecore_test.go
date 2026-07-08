@@ -76,23 +76,20 @@ func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 	engine.AddTable(acceptTable)
 	engine.AddTable(passTable)
 
-	results, err := engine.Evaluate([]*eval.Context{
-		eval.New(packet.New(
-			packet.WithSrcAddr("10.0.0.1"),
-			packet.WithDstAddr("1.1.1.1"),
-			packet.WithProto(proto.TCP),
-			packet.WithSrcPort(12345),
-			packet.WithDstPort(80),
-		)),
-	})
+	result, err := engine.Evaluate(eval.New(packet.New(
+		packet.WithSrcAddr("10.0.0.1"),
+		packet.WithDstAddr("1.1.1.1"),
+		packet.WithProto(proto.TCP),
+		packet.WithSrcPort(12345),
+		packet.WithDstPort(80),
+	)))
 
 	Expect(err).NotTo(HaveOccurred())
 	Expect(engine.Tables).To(Equal([]*table.Table{passTable, acceptTable}))
-	Expect(results).To(HaveLen(1))
-	Expect(results[0].Verdict).To(HaveValue(Equal(rule.Accept)))
-	Expect(results[0].Trace).To(HaveLen(2))
-	Expect(results[0].Trace[0].Name).To(Equal("pass-http"))
-	Expect(results[0].Trace[1].Name).To(Equal("accept-http"))
+	Expect(result.Verdict).To(HaveValue(Equal(rule.Accept)))
+	Expect(result.Trace).To(HaveLen(2))
+	Expect(result.Trace[0].Name).To(Equal("pass-http"))
+	Expect(result.Trace[1].Name).To(Equal("accept-http"))
 }
 
 func TestEvaluatePassesToNextTable(t *testing.T) {
@@ -122,22 +119,19 @@ func TestEvaluatePassesToNextTable(t *testing.T) {
 	engine.AddTable(passTable)
 	engine.AddTable(acceptTable)
 
-	results, err := engine.Evaluate([]*eval.Context{
-		eval.New(packet.New(
-			packet.WithSrcAddr("10.0.0.1"),
-			packet.WithDstAddr("1.1.1.1"),
-			packet.WithProto(proto.TCP),
-			packet.WithSrcPort(12345),
-			packet.WithDstPort(80),
-		)),
-	})
+	result, err := engine.Evaluate(eval.New(packet.New(
+		packet.WithSrcAddr("10.0.0.1"),
+		packet.WithDstAddr("1.1.1.1"),
+		packet.WithProto(proto.TCP),
+		packet.WithSrcPort(12345),
+		packet.WithDstPort(80),
+	)))
 
 	Expect(err).NotTo(HaveOccurred())
-	Expect(results).To(HaveLen(1))
-	Expect(results[0].Verdict).To(HaveValue(Equal(rule.Accept)))
-	Expect(results[0].Trace).To(HaveLen(2))
-	Expect(results[0].Trace[0].Name).To(Equal("pass-http"))
-	Expect(results[0].Trace[1].Name).To(Equal("accept-http"))
+	Expect(result.Verdict).To(HaveValue(Equal(rule.Accept)))
+	Expect(result.Trace).To(HaveLen(2))
+	Expect(result.Trace[0].Name).To(Equal("pass-http"))
+	Expect(result.Trace[1].Name).To(Equal("accept-http"))
 }
 
 func TestEvaluateTracksEstablishedFlows(t *testing.T) {
@@ -184,14 +178,15 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 	engine := New(WithConntrack())
 	engine.AddTable(stateful)
 
-	results, err := engine.Evaluate([]*eval.Context{request, reply})
+	requestResult, err := engine.Evaluate(request)
+	Expect(err).NotTo(HaveOccurred())
+	replyResult, err := engine.Evaluate(reply)
 
 	Expect(err).NotTo(HaveOccurred())
-	Expect(results).To(HaveLen(2))
 	Expect(request.ConnState).To(HaveValue(Equal(conntrack.StateNew)))
-	expectMatchResult(results[0], rule.Accept, "allow-new-http")
+	expectMatchResult(requestResult, rule.Accept, "allow-new-http")
 	Expect(reply.ConnState).To(HaveValue(Equal(conntrack.StateEstablished)))
-	expectMatchResult(results[1], rule.Accept, "allow-established")
+	expectMatchResult(replyResult, rule.Accept, "allow-established")
 }
 
 func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
@@ -238,14 +233,15 @@ func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 	engine := New()
 	engine.AddTable(stateful)
 
-	results, err := engine.Evaluate([]*eval.Context{request, reply})
+	requestResult, err := engine.Evaluate(request)
+	Expect(err).NotTo(HaveOccurred())
+	replyResult, err := engine.Evaluate(reply)
 
 	Expect(err).NotTo(HaveOccurred())
-	Expect(results).To(HaveLen(2))
 	Expect(request.ConnState).To(BeNil())
-	expectMatchResult(results[0], rule.Accept, "allow-new-http")
+	expectMatchResult(requestResult, rule.Accept, "allow-new-http")
 	Expect(reply.ConnState).To(BeNil())
-	expectMatchResult(results[1], rule.Drop, "table stateful default action")
+	expectMatchResult(replyResult, rule.Drop, "table stateful default action")
 }
 
 func TestEvaluateSupportsJumpChains(t *testing.T) {
@@ -276,22 +272,19 @@ func TestEvaluateSupportsJumpChains(t *testing.T) {
 	engine := New()
 	engine.AddTable(tbl)
 
-	results, err := engine.Evaluate([]*eval.Context{
-		eval.New(packet.New(
-			packet.WithSrcAddr("10.0.0.1"),
-			packet.WithDstAddr("1.1.1.1"),
-			packet.WithProto(proto.TCP),
-			packet.WithSrcPort(12345),
-			packet.WithDstPort(80),
-		)),
-	})
+	result, err := engine.Evaluate(eval.New(packet.New(
+		packet.WithSrcAddr("10.0.0.1"),
+		packet.WithDstAddr("1.1.1.1"),
+		packet.WithProto(proto.TCP),
+		packet.WithSrcPort(12345),
+		packet.WithDstPort(80),
+	)))
 
 	Expect(err).NotTo(HaveOccurred())
-	Expect(results).To(HaveLen(1))
-	Expect(results[0].Verdict).To(HaveValue(Equal(rule.Accept)))
-	Expect(results[0].Trace).To(HaveLen(2))
-	Expect(results[0].Trace[0].Name).To(Equal("jump-admin"))
-	Expect(results[0].Trace[1].Name).To(Equal("allow-admin-http"))
+	Expect(result.Verdict).To(HaveValue(Equal(rule.Accept)))
+	Expect(result.Trace).To(HaveLen(2))
+	Expect(result.Trace[0].Name).To(Equal("jump-admin"))
+	Expect(result.Trace[1].Name).To(Equal("allow-admin-http"))
 }
 
 func TestEvaluateReturnsErrorForMissingJumpTarget(t *testing.T) {
@@ -309,13 +302,11 @@ func TestEvaluateReturnsErrorForMissingJumpTarget(t *testing.T) {
 	engine := New()
 	engine.AddTable(tbl)
 
-	results, err := engine.Evaluate([]*eval.Context{
-		eval.New(packet.New(
-			packet.WithSrcAddr("10.0.0.1"),
-			packet.WithDstAddr("1.1.1.1"),
-		)),
-	})
+	result, err := engine.Evaluate(eval.New(packet.New(
+		packet.WithSrcAddr("10.0.0.1"),
+		packet.WithDstAddr("1.1.1.1"),
+	)))
 
-	Expect(err).To(MatchError(`evaluate context 0 in table "main": chain "missing" not found`))
-	Expect(results).To(BeNil())
+	Expect(err).To(MatchError(`evaluate in table "main": chain "missing" not found`))
+	Expect(result).To(BeNil())
 }

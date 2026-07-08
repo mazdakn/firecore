@@ -36,42 +36,38 @@ func (e *Engine) AddTable(t *table.Table) {
 	table.SortTables(e.Tables)
 }
 
-func (e *Engine) Evaluate(contexts []*eval.Context) ([]*eval.Result, error) {
-	results := make([]*eval.Result, 0, len(contexts))
-
-	for i, ctx := range contexts {
-		if ctx == nil {
-			return nil, fmt.Errorf("evaluate context %d: nil context", i)
-		}
-		if ctx.Packet == nil {
-			return nil, fmt.Errorf("evaluate context %d: nil packet", i)
-		}
-
-		result := &eval.Result{}
-		if e.tracker != nil {
-			state := e.tracker.Lookup(ctx.Packet)
-			ctx.ConnState = &state
-		} else {
-			ctx.ConnState = nil
-		}
-		decided := false
-		for _, t := range e.Tables {
-			matched, err := t.Match(ctx, result)
-			if err != nil {
-				return nil, fmt.Errorf("evaluate context %d in table %q: %w", i, t.Name, err)
-			}
-			if matched {
-				decided = true
-				break
-			}
-		}
-		if !decided {
-			result.Verdict = nil
-		}
-		if e.tracker != nil && result.Verdict != nil && *result.Verdict == rule.Accept {
-			e.tracker.CommitAccepted(ctx.Packet)
-		}
-		results = append(results, result)
+func (e *Engine) Evaluate(ctx *eval.Context) (*eval.Result, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("evaluate: nil context")
 	}
-	return results, nil
+	if ctx.Packet == nil {
+		return nil, fmt.Errorf("evaluate: nil packet")
+	}
+
+	result := &eval.Result{}
+	if e.tracker != nil {
+		state := e.tracker.Lookup(ctx.Packet)
+		ctx.ConnState = &state
+	} else {
+		ctx.ConnState = nil
+	}
+	decided := false
+	for _, t := range e.Tables {
+		matched, err := t.Match(ctx, result)
+		if err != nil {
+			return nil, fmt.Errorf("evaluate in table %q: %w", t.Name, err)
+		}
+		if matched {
+			decided = true
+			break
+		}
+	}
+	if !decided {
+		result.Verdict = nil
+	}
+	if e.tracker != nil && result.Verdict != nil && *result.Verdict == rule.Accept {
+		e.tracker.CommitAccepted(ctx.Packet)
+	}
+
+	return result, nil
 }
