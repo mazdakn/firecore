@@ -75,345 +75,382 @@ func ParseAction(s string) (Action, error) {
 	}
 }
 
-// MustParseAction parses an action string into an Action type
-func MustParseAction(s string) Action {
-	switch strings.ToLower(s) {
-	case "accept":
-		return Accept
-	case "drop":
-		return Drop
-	case "pass":
-		return Pass
-	case "jump":
-		return Jump
-	case "return":
-		return Return
-	default:
-		panic(fmt.Sprintf("unknown action: %s", s))
-	}
-}
-
-type RuleOption func(*Rule)
+type RuleOption func(*Rule) error
 
 func WithJump(chainName string) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.Action = Jump
 		r.JumpTarget = chainName
+		return nil
 	}
 }
 
 func WithAction(action Action) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.Action = action
+		return nil
 	}
 }
 
 func WithConnState(state conntrack.State) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.ConnState = append(r.ConnState, state)
+		return nil
 	}
 }
 
 func WithNotConnState(state conntrack.State) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.NotConnState = append(r.NotConnState, state)
+		return nil
 	}
 }
 
 func WithName(name string) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.Name = name
+		return nil
 	}
 }
 
 func WithPayload(pattern string) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		matcher, err := payload.New(pattern)
 		if err != nil {
-			panic(fmt.Sprintf("invalid payload regex %q: %v", pattern, err))
+			return fmt.Errorf("invalid payload regex %q: %w", pattern, err)
 		}
 		r.Payload = matcher
+		return nil
 	}
 }
 
 func WithOrder(order uint64) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.Order = order
+		return nil
 	}
 }
 
 // Protocol options.
 
 func WithProto(p proto.Proto) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		if r.Proto == nil {
 			r.Proto = set.NewProtoSet()
 		}
 		if err := r.Proto.Add(p); err != nil {
-			panic(fmt.Sprintf("invalid protocol %v", p))
+			return fmt.Errorf("invalid protocol %v", p)
 		}
+		return nil
 	}
 }
 
 func WithNotProto(p proto.Proto) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		if r.NotProto == nil {
 			r.NotProto = set.NewProtoSet()
 		}
 		if err := r.NotProto.Add(p); err != nil {
-			panic(fmt.Sprintf("invalid protocol %v", p))
+			return fmt.Errorf("invalid protocol %v", p)
 		}
+		return nil
 	}
 }
 
 // Source port options.
 
 func WithSrcPort(port uint16) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		if r.Source.Port == nil {
 			r.Source.Port = set.NewPortSet()
 		}
 		if err := r.Source.Port.Add(port); err != nil {
-			panic(fmt.Sprintf("invalid port %d", port))
+			return fmt.Errorf("invalid port %d", port)
 		}
+		return nil
 	}
 }
 
 func WithNotSrcPort(port uint16) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		if r.NotSource.Port == nil {
 			r.NotSource.Port = set.NewPortSet()
 		}
 		if err := r.NotSource.Port.Add(port); err != nil {
-			panic(fmt.Sprintf("invalid port %d", port))
+			return fmt.Errorf("invalid port %d", port)
 		}
+		return nil
 	}
 }
 
 func WithSrcPortSet(s set.Set) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.Source.Sets = append(r.Source.Sets, s)
+		return nil
 	}
 }
 
 func WithNotSrcPortSet(s set.Set) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.NotSource.Sets = append(r.NotSource.Sets, s)
+		return nil
 	}
 }
 
 func WithSrcIPPortSet(s set.Set) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.Source.Sets = append(r.Source.Sets, s)
+		return nil
 	}
 }
 
 func WithNotSrcIPPortSet(s set.Set) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.NotSource.Sets = append(r.NotSource.Sets, s)
+		return nil
 	}
 }
 
 // Destination port options.
 
 func WithDstPort(port uint16) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		if r.Destination.Port == nil {
 			r.Destination.Port = set.NewPortSet()
 		}
 		if err := r.Destination.Port.Add(port); err != nil {
-			panic(fmt.Sprintf("invalid port %d", port))
+			return fmt.Errorf("invalid port %d", port)
 		}
+		return nil
 	}
 }
 
 func WithNotDstPort(port uint16) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		if r.NotDestination.Port == nil {
 			r.NotDestination.Port = set.NewPortSet()
 		}
 		if err := r.NotDestination.Port.Add(port); err != nil {
-			panic(fmt.Sprintf("invalid port %d", port))
+			return fmt.Errorf("invalid port %d", port)
 		}
+		return nil
 	}
 }
 
 func WithDstPortSet(s set.Set) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.Destination.Sets = append(r.Destination.Sets, s)
+		return nil
 	}
 }
 
 func WithNotDstPortSet(s set.Set) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.NotDestination.Sets = append(r.NotDestination.Sets, s)
+		return nil
 	}
 }
 
 func WithDstIPPortSet(s set.Set) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.Destination.Sets = append(r.Destination.Sets, s)
+		return nil
 	}
 }
 
 func WithNotDstIPPortSet(s set.Set) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.NotDestination.Sets = append(r.NotDestination.Sets, s)
+		return nil
 	}
 }
 
 // Source address options.
 
 func WithSrcNet(cidr string) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		if r.Source.Net == nil {
 			r.Source.Net = set.NewIPSet()
 		}
-		if err := r.Source.Net.Add(MustParseCIDR(cidr)); err != nil {
-			panic(fmt.Sprintf("invalid cidr %s", cidr))
+		_, ipnet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return fmt.Errorf("CIDR %s is invalid", cidr)
 		}
+		if err := r.Source.Net.Add(ipnet); err != nil {
+			return fmt.Errorf("error adding %s to set: %w", cidr, err)
+		}
+		return nil
 	}
 }
 
 func WithNotSrcNet(cidr string) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		if r.NotSource.Net == nil {
 			r.NotSource.Net = set.NewIPSet()
 		}
-		if err := r.NotSource.Net.Add(MustParseCIDR(cidr)); err != nil {
-			panic(fmt.Sprintf("invalid cidr %s", cidr))
+		_, ipnet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return fmt.Errorf("CIDR %s is invalid", cidr)
 		}
+		if err := r.NotSource.Net.Add(ipnet); err != nil {
+			return fmt.Errorf("error adding %s to set: %w", cidr, err)
+		}
+		return nil
 	}
 }
 
 func WithSrcIPSet(s set.Set) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.Source.Sets = append(r.Source.Sets, s)
+		return nil
 	}
 }
 
 func WithNotSrcIPSet(s set.Set) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.NotSource.Sets = append(r.NotSource.Sets, s)
+		return nil
 	}
 }
 
 // Source address options.
 
 func WithDstNet(cidr string) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		if r.Destination.Net == nil {
 			r.Destination.Net = set.NewIPSet()
 		}
-		if err := r.Destination.Net.Add(MustParseCIDR(cidr)); err != nil {
-			panic(fmt.Sprintf("invalid cidr %s", cidr))
+		_, ipnet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return fmt.Errorf("CIDR %s is invalid", cidr)
 		}
+		if err := r.Destination.Net.Add(ipnet); err != nil {
+			return fmt.Errorf("error adding %s to set: %w", cidr, err)
+		}
+		return nil
 	}
 }
 
 func WithNotDstNet(cidr string) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		if r.NotDestination.Net == nil {
 			r.NotDestination.Net = set.NewIPSet()
 		}
-		if err := r.NotDestination.Net.Add(MustParseCIDR(cidr)); err != nil {
-			panic(fmt.Sprintf("invalid cidr %s", cidr))
+		_, ipnet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return fmt.Errorf("CIDR %s is invalid", cidr)
 		}
+		if err := r.NotDestination.Net.Add(ipnet); err != nil {
+			return fmt.Errorf("error adding %s to set: %w", cidr, err)
+		}
+		return nil
 	}
 }
 
 func WithDstIPSet(s set.Set) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.Destination.Sets = append(r.Destination.Sets, s)
+		return nil
 	}
 }
 
 func WithNotDstIPSet(s set.Set) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.NotDestination.Sets = append(r.NotDestination.Sets, s)
+		return nil
 	}
 }
 
 // Source interface options.
 
 func WithSrcIface(iface string) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		if r.Source.Iface == nil {
 			r.Source.Iface = set.NewIfaceSet()
 		}
 		if err := r.Source.Iface.Add(iface); err != nil {
-			panic(fmt.Sprintf("invalid interface %s", iface))
+			return fmt.Errorf("invalid interface %s", iface)
 		}
+		return nil
 	}
 }
 
 func WithNotSrcIface(iface string) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		if r.NotSource.Iface == nil {
 			r.NotSource.Iface = set.NewIfaceSet()
 		}
 		if err := r.NotSource.Iface.Add(iface); err != nil {
-			panic(fmt.Sprintf("invalid interface %s", iface))
+			return fmt.Errorf("invalid interface %s", iface)
 		}
+		return nil
 	}
 }
 
 // Destination interface options.
 
 func WithDstIface(iface string) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		if r.Destination.Iface == nil {
 			r.Destination.Iface = set.NewIfaceSet()
 		}
 		if err := r.Destination.Iface.Add(iface); err != nil {
-			panic(fmt.Sprintf("invalid interface %s", iface))
+			return fmt.Errorf("invalid interface %s", iface)
 		}
+		return nil
 	}
 }
 
 func WithNotDstIface(iface string) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		if r.NotDestination.Iface == nil {
 			r.NotDestination.Iface = set.NewIfaceSet()
 		}
 		if err := r.NotDestination.Iface.Add(iface); err != nil {
-			panic(fmt.Sprintf("invalid interface %s", iface))
+			return fmt.Errorf("invalid interface %s", iface)
 		}
+		return nil
 	}
 }
 
 func WithSrcIfaceSet(s set.Set) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.Source.Sets = append(r.Source.Sets, s)
+		return nil
 	}
 }
 
 func WithNotSrcIfaceSet(s set.Set) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.NotSource.Sets = append(r.NotSource.Sets, s)
+		return nil
 	}
 }
 
 func WithDstIfaceSet(s set.Set) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.Destination.Sets = append(r.Destination.Sets, s)
+		return nil
 	}
 }
 
 func WithNotDstIfaceSet(s set.Set) RuleOption {
-	return func(r *Rule) {
+	return func(r *Rule) error {
 		r.NotDestination.Sets = append(r.NotDestination.Sets, s)
+		return nil
 	}
 }
 
-func New(opts ...RuleOption) *Rule {
+func New(opts ...RuleOption) (*Rule, error) {
 	r := Rule{
 		packetCount: counter.New(),
 	}
 	for _, o := range opts {
-		o(&r)
+		if err := o(&r); err != nil {
+			return nil, err
+		}
 	}
-	return &r
+	return &r, nil
 }
 
 // Endpoint groups the network, port, and interface match criteria for one traffic direction.
@@ -768,12 +805,4 @@ func filterEndpointSetsByType(sets []set.Set, t set.Type) []set.Set {
 		}
 	}
 	return filtered
-}
-
-func MustParseCIDR(cidr string) *net.IPNet {
-	_, ipnet, err := net.ParseCIDR(cidr)
-	if err != nil {
-		panic(fmt.Sprintf("CIDR %s is invalid", cidr))
-	}
-	return ipnet
 }
