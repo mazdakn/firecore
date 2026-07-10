@@ -14,9 +14,9 @@ func TestChainAddRuleSortAscending(t *testing.T) {
 
 	chain := NewChain("main")
 
-	rule1 := rule.New(rule.WithName("rule1"), rule.WithOrder(10), rule.WithAction(rule.Accept))
-	rule2 := rule.New(rule.WithName("rule2"), rule.WithOrder(30), rule.WithAction(rule.Accept))
-	rule3 := rule.New(rule.WithName("rule3"), rule.WithOrder(20), rule.WithAction(rule.Accept))
+	rule1 := newRule(rule.WithName("rule1"), rule.WithOrder(10), rule.WithAction(rule.Accept))
+	rule2 := newRule(rule.WithName("rule2"), rule.WithOrder(30), rule.WithAction(rule.Accept))
+	rule3 := newRule(rule.WithName("rule3"), rule.WithOrder(20), rule.WithAction(rule.Accept))
 
 	chain.AddRule(rule1)
 	chain.AddRule(rule2)
@@ -33,9 +33,9 @@ func TestChainAddRuleSortStableForEqualOrders(t *testing.T) {
 
 	chain := NewChain("main")
 
-	rule1 := rule.New(rule.WithName("rule1"), rule.WithAction(rule.Accept))
-	rule2 := rule.New(rule.WithName("rule2"), rule.WithAction(rule.Drop))
-	rule3 := rule.New(rule.WithName("rule3"), rule.WithAction(rule.Accept))
+	rule1 := newRule(rule.WithName("rule1"), rule.WithAction(rule.Accept))
+	rule2 := newRule(rule.WithName("rule2"), rule.WithAction(rule.Drop))
+	rule3 := newRule(rule.WithName("rule3"), rule.WithAction(rule.Accept))
 
 	chain.AddRule(rule1)
 	chain.AddRule(rule2)
@@ -50,10 +50,10 @@ func TestChainAddRuleSortStableForEqualOrders(t *testing.T) {
 func TestSortTablesSortAscendingAndStable(t *testing.T) {
 	RegisterTestingT(t)
 
-	t1 := New("first", 10, rule.Accept)
-	t2 := New("second", 0, rule.Accept)
-	t3 := New("third", 10, rule.Accept)
-	t4 := New("fourth", 5, rule.Accept)
+	t1 := newTable("first", 10, rule.Accept)
+	t2 := newTable("second", 0, rule.Accept)
+	t3 := newTable("third", 10, rule.Accept)
+	t4 := newTable("fourth", 5, rule.Accept)
 
 	tables := []*Table{t1, t2, t3, t4}
 	SortTables(tables)
@@ -67,7 +67,7 @@ func TestSortTablesSortAscendingAndStable(t *testing.T) {
 func TestTableMatchUsesAscendingOrder(t *testing.T) {
 	RegisterTestingT(t)
 
-	tbl := New("test", 0, rule.Drop)
+	tbl := newTable("test", 0, rule.Drop)
 	chain := NewChain("main")
 
 	pkt := packet.New(
@@ -77,9 +77,9 @@ func TestTableMatchUsesAscendingOrder(t *testing.T) {
 		packet.WithDstPort(80),
 	)
 
-	highOrderDrop := rule.New(rule.WithName("high-drop"), rule.WithOrder(100), rule.WithAction(rule.Drop),
+	highOrderDrop := newRule(rule.WithName("high-drop"), rule.WithOrder(100), rule.WithAction(rule.Drop),
 		rule.WithProto(6), rule.WithDstPort(80))
-	lowOrderAccept := rule.New(rule.WithName("low-accept"), rule.WithOrder(1), rule.WithAction(rule.Accept),
+	lowOrderAccept := newRule(rule.WithName("low-accept"), rule.WithOrder(1), rule.WithAction(rule.Accept),
 		rule.WithProto(6), rule.WithDstPort(80))
 
 	chain.AddRule(highOrderDrop)
@@ -97,7 +97,7 @@ func TestTableMatchUsesAscendingOrder(t *testing.T) {
 func TestTableMatchPassContinuesToNextTable(t *testing.T) {
 	RegisterTestingT(t)
 
-	tbl := New("test", 0, rule.Drop)
+	tbl := newTable("test", 0, rule.Drop)
 	chain := NewChain("main")
 
 	pkt := packet.New(
@@ -107,7 +107,7 @@ func TestTableMatchPassContinuesToNextTable(t *testing.T) {
 		packet.WithDstPort(80),
 	)
 
-	passRule := rule.New(rule.WithName("pass-http"), rule.WithOrder(1), rule.WithAction(rule.Pass),
+	passRule := newRule(rule.WithName("pass-http"), rule.WithOrder(1), rule.WithAction(rule.Pass),
 		rule.WithProto(6), rule.WithDstPort(80))
 	chain.AddRule(passRule)
 	tbl.AddChain(chain)
@@ -126,7 +126,7 @@ func TestTableMatchPassContinuesToNextTable(t *testing.T) {
 func TestTableMatchPassRuleDoesNotEvaluateDefaultAction(t *testing.T) {
 	RegisterTestingT(t)
 
-	tbl := New("test", 0, rule.Drop)
+	tbl := newTable("test", 0, rule.Drop)
 	chain := NewChain("main")
 
 	pkt := packet.New(
@@ -136,7 +136,7 @@ func TestTableMatchPassRuleDoesNotEvaluateDefaultAction(t *testing.T) {
 		packet.WithDstPort(80),
 	)
 
-	passRule := rule.New(rule.WithName("pass-http"), rule.WithOrder(1), rule.WithAction(rule.Pass),
+	passRule := newRule(rule.WithName("pass-http"), rule.WithOrder(1), rule.WithAction(rule.Pass),
 		rule.WithProto(6), rule.WithDstPort(80))
 
 	chain.AddRule(passRule)
@@ -156,7 +156,7 @@ func TestTableMatchPassRuleDoesNotEvaluateDefaultAction(t *testing.T) {
 func TestTableMatchNoRuleAndDefaultPassReturnsNoMatchVerdict(t *testing.T) {
 	RegisterTestingT(t)
 
-	tbl := New("test", 0, rule.Pass)
+	tbl := newTable("test", 0, rule.Pass)
 	chain := NewChain("main")
 	tbl.AddChain(chain)
 
@@ -182,7 +182,7 @@ func TestTableMatchNoRuleAndDefaultPassReturnsNoMatchVerdict(t *testing.T) {
 func TestTableJumpToChainAndReturn(t *testing.T) {
 	RegisterTestingT(t)
 
-	tbl := New("test", 0, rule.Drop)
+	tbl := newTable("test", 0, rule.Drop)
 
 	pkt := packet.New(
 		packet.WithSrcAddr("10.0.0.1"),
@@ -193,13 +193,13 @@ func TestTableJumpToChainAndReturn(t *testing.T) {
 
 	// helper chain: accept HTTP traffic
 	helperChain := NewChain("helper")
-	acceptHTTP := rule.New(rule.WithName("accept-http"), rule.WithOrder(1), rule.WithAction(rule.Accept),
+	acceptHTTP := newRule(rule.WithName("accept-http"), rule.WithOrder(1), rule.WithAction(rule.Accept),
 		rule.WithProto(6), rule.WithDstPort(80))
 	helperChain.AddRule(acceptHTTP)
 
 	// entry chain: jump to helper for TCP traffic
 	mainChain := NewChain("main")
-	jumpRule := rule.New(rule.WithName("jump-to-helper"), rule.WithOrder(1),
+	jumpRule := newRule(rule.WithName("jump-to-helper"), rule.WithOrder(1),
 		rule.WithJump("helper"), rule.WithProto(6))
 	mainChain.AddRule(jumpRule)
 
@@ -221,7 +221,7 @@ func TestTableJumpToChainAndReturn(t *testing.T) {
 func TestTableJumpChainNoMatchReturnsToCaller(t *testing.T) {
 	RegisterTestingT(t)
 
-	tbl := New("test", 0, rule.Drop)
+	tbl := newTable("test", 0, rule.Drop)
 
 	pkt := packet.New(
 		packet.WithSrcAddr("10.0.0.1"),
@@ -232,13 +232,13 @@ func TestTableJumpChainNoMatchReturnsToCaller(t *testing.T) {
 
 	// helper chain: only matches port 443 — will not match the packet
 	helperChain := NewChain("helper")
-	noMatchRule := rule.New(rule.WithName("accept-https"), rule.WithOrder(1), rule.WithAction(rule.Accept),
+	noMatchRule := newRule(rule.WithName("accept-https"), rule.WithOrder(1), rule.WithAction(rule.Accept),
 		rule.WithProto(6), rule.WithDstPort(443))
 	helperChain.AddRule(noMatchRule)
 
 	// entry chain: jump to helper, then fall through to default action
 	mainChain := NewChain("main")
-	jumpRule := rule.New(rule.WithName("jump-to-helper"), rule.WithOrder(1),
+	jumpRule := newRule(rule.WithName("jump-to-helper"), rule.WithOrder(1),
 		rule.WithJump("helper"), rule.WithProto(6))
 	mainChain.AddRule(jumpRule)
 
@@ -258,7 +258,7 @@ func TestTableJumpChainNoMatchReturnsToCaller(t *testing.T) {
 func TestTableMatchNilDefaultRuleReturnsNoMatch(t *testing.T) {
 	RegisterTestingT(t)
 
-	tbl := New("test", 0, rule.Drop)
+	tbl := newTable("test", 0, rule.Drop)
 	tbl.DefaultRule = nil
 	chain := NewChain("main")
 	tbl.AddChain(chain)
@@ -283,7 +283,7 @@ func TestTableMatchNilDefaultRuleReturnsNoMatch(t *testing.T) {
 func TestTableReturnActionReturnsToCallerChain(t *testing.T) {
 	RegisterTestingT(t)
 
-	tbl := New("test", 0, rule.Drop)
+	tbl := newTable("test", 0, rule.Drop)
 
 	pkt := packet.New(
 		packet.WithSrcAddr("10.0.0.1"),
@@ -294,14 +294,14 @@ func TestTableReturnActionReturnsToCallerChain(t *testing.T) {
 
 	// helper chain: Return immediately
 	helperChain := NewChain("helper")
-	returnRule := rule.New(rule.WithName("return-all"), rule.WithOrder(1), rule.WithAction(rule.Return))
+	returnRule := newRule(rule.WithName("return-all"), rule.WithOrder(1), rule.WithAction(rule.Return))
 	helperChain.AddRule(returnRule)
 
 	// entry chain: jump to helper, then accept all
 	mainChain := NewChain("main")
-	jumpRule := rule.New(rule.WithName("jump-to-helper"), rule.WithOrder(1),
+	jumpRule := newRule(rule.WithName("jump-to-helper"), rule.WithOrder(1),
 		rule.WithJump("helper"), rule.WithProto(6))
-	acceptAll := rule.New(rule.WithName("accept-all"), rule.WithOrder(2), rule.WithAction(rule.Accept))
+	acceptAll := newRule(rule.WithName("accept-all"), rule.WithOrder(2), rule.WithAction(rule.Accept))
 	mainChain.AddRule(jumpRule)
 	mainChain.AddRule(acceptAll)
 
@@ -322,10 +322,10 @@ func TestTableReturnActionReturnsToCallerChain(t *testing.T) {
 func TestTableMatchReturnsErrorForMissingJumpTarget(t *testing.T) {
 	RegisterTestingT(t)
 
-	tbl := New("test", 0, rule.Drop)
+	tbl := newTable("test", 0, rule.Drop)
 
 	mainChain := NewChain("main")
-	mainChain.AddRule(rule.New(
+	mainChain.AddRule(newRule(
 		rule.WithName("jump-missing"),
 		rule.WithJump("missing"),
 	))
@@ -344,4 +344,16 @@ func TestTableMatchReturnsErrorForMissingJumpTarget(t *testing.T) {
 	Expect(matched).To(BeFalse())
 	Expect(result.Trace).To(HaveLen(1))
 	Expect(result.Trace[0].Name).To(Equal("jump-missing"))
+}
+
+func newRule(opts ...rule.RuleOption) *rule.Rule {
+	r, err := rule.New(opts...)
+	Expect(err).NotTo(HaveOccurred())
+	return r
+}
+
+func newTable(name string, order uint64, defaultAction rule.Action) *Table {
+	t, err := New(name, order, defaultAction)
+	Expect(err).NotTo(HaveOccurred())
+	return t
 }

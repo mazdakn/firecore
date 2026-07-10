@@ -18,16 +18,21 @@ type Table struct {
 	DefaultRule *rule.Rule
 }
 
-func New(name string, order uint64, defaultAction rule.Action) *Table {
-	return &Table{
-		Name:   name,
-		Order:  order,
-		Chains: make(map[string]*Chain),
-		DefaultRule: rule.New(
-			rule.WithAction(defaultAction),
-			rule.WithName(fmt.Sprintf("table %s default action", name)),
-		),
+func New(name string, order uint64, defaultAction rule.Action) (*Table, error) {
+	defaultRule, err := rule.New(
+		rule.WithAction(defaultAction),
+		rule.WithName(fmt.Sprintf("table %s default action", name)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create default rule: %w", err)
 	}
+
+	return &Table{
+		Name:        name,
+		Order:       order,
+		Chains:      make(map[string]*Chain),
+		DefaultRule: defaultRule,
+	}, nil
 }
 
 // AddChain adds c to the table. The first chain added becomes the entry chain

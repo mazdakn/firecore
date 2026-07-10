@@ -18,6 +18,18 @@ func expectMatchResult(result *eval.Result, expectedVerdict rule.Action, expecte
 	Expect(result.Trace[len(result.Trace)-1].Name).To(Equal(expectedRule))
 }
 
+func newRule(opts ...rule.RuleOption) *rule.Rule {
+	r, err := rule.New(opts...)
+	Expect(err).NotTo(HaveOccurred())
+	return r
+}
+
+func newTable(name string, order uint64, defaultAction rule.Action) *table.Table {
+	tbl, err := table.New(name, order, defaultAction)
+	Expect(err).NotTo(HaveOccurred())
+	return tbl
+}
+
 func TestNew(t *testing.T) {
 	RegisterTestingT(t)
 
@@ -39,8 +51,8 @@ func TestNewAppliesOptions(t *testing.T) {
 func TestAddTable(t *testing.T) {
 	RegisterTestingT(t)
 
-	first := table.New("first", 1, rule.Drop)
-	second := table.New("second", 2, rule.Drop)
+	first := newTable("first", 1, rule.Drop)
+	second := newTable("second", 2, rule.Drop)
 	engine := New()
 
 	engine.AddTable(first)
@@ -52,9 +64,9 @@ func TestAddTable(t *testing.T) {
 func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 	RegisterTestingT(t)
 
-	acceptTable := table.New("accept-table", 2, rule.Drop)
+	acceptTable := newTable("accept-table", 2, rule.Drop)
 	acceptChain := table.NewChain("default")
-	acceptChain.AddRule(rule.New(
+	acceptChain.AddRule(newRule(
 		rule.WithName("accept-http"),
 		rule.WithDstPort(80),
 		rule.WithProto(proto.TCP),
@@ -62,9 +74,9 @@ func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 	))
 	acceptTable.AddChain(acceptChain)
 
-	passTable := table.New("pass-table", 1, rule.Drop)
+	passTable := newTable("pass-table", 1, rule.Drop)
 	passChain := table.NewChain("default")
-	passChain.AddRule(rule.New(
+	passChain.AddRule(newRule(
 		rule.WithName("pass-http"),
 		rule.WithDstPort(80),
 		rule.WithProto(proto.TCP),
@@ -95,9 +107,9 @@ func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 func TestEvaluatePassesToNextTable(t *testing.T) {
 	RegisterTestingT(t)
 
-	passTable := table.New("pass-table", 1, rule.Drop)
+	passTable := newTable("pass-table", 1, rule.Drop)
 	passChain := table.NewChain("default")
-	passChain.AddRule(rule.New(
+	passChain.AddRule(newRule(
 		rule.WithName("pass-http"),
 		rule.WithDstPort(80),
 		rule.WithProto(proto.TCP),
@@ -105,9 +117,9 @@ func TestEvaluatePassesToNextTable(t *testing.T) {
 	))
 	passTable.AddChain(passChain)
 
-	acceptTable := table.New("accept-table", 2, rule.Drop)
+	acceptTable := newTable("accept-table", 2, rule.Drop)
 	acceptChain := table.NewChain("default")
-	acceptChain.AddRule(rule.New(
+	acceptChain.AddRule(newRule(
 		rule.WithName("accept-http"),
 		rule.WithDstPort(80),
 		rule.WithProto(proto.TCP),
@@ -137,16 +149,16 @@ func TestEvaluatePassesToNextTable(t *testing.T) {
 func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 	RegisterTestingT(t)
 
-	stateful := table.New("stateful", 1, rule.Drop)
+	stateful := newTable("stateful", 1, rule.Drop)
 	defaultChain := table.NewChain("default")
-	defaultChain.AddRule(rule.New(
+	defaultChain.AddRule(newRule(
 		rule.WithName("allow-new-http"),
 		rule.WithConnState(conntrack.StateNew),
 		rule.WithDstPort(80),
 		rule.WithProto(proto.TCP),
 		rule.WithAction(rule.Accept),
 	))
-	defaultChain.AddRule(rule.New(
+	defaultChain.AddRule(newRule(
 		rule.WithName("allow-established"),
 		rule.WithConnState(conntrack.StateEstablished),
 		rule.WithProto(proto.TCP),
@@ -192,16 +204,16 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 	RegisterTestingT(t)
 
-	stateful := table.New("stateful", 1, rule.Drop)
+	stateful := newTable("stateful", 1, rule.Drop)
 	defaultChain := table.NewChain("default")
-	defaultChain.AddRule(rule.New(
+	defaultChain.AddRule(newRule(
 		rule.WithName("allow-new-http"),
 		rule.WithConnState(conntrack.StateNew),
 		rule.WithDstPort(80),
 		rule.WithProto(proto.TCP),
 		rule.WithAction(rule.Accept),
 	))
-	defaultChain.AddRule(rule.New(
+	defaultChain.AddRule(newRule(
 		rule.WithName("allow-established"),
 		rule.WithConnState(conntrack.StateEstablished),
 		rule.WithProto(proto.TCP),
@@ -247,19 +259,19 @@ func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 func TestEvaluateSupportsJumpChains(t *testing.T) {
 	RegisterTestingT(t)
 
-	tbl := table.New("main", 1, rule.Drop)
+	tbl := newTable("main", 1, rule.Drop)
 	entry := table.NewChain("entry")
-	entry.AddRule(rule.New(
+	entry.AddRule(newRule(
 		rule.WithName("jump-admin"),
 		rule.WithSrcNet("10.0.0.0/8"),
 		rule.WithJump("admin"),
 	))
-	entry.AddRule(rule.New(
+	entry.AddRule(newRule(
 		rule.WithName("deny-all"),
 		rule.WithAction(rule.Drop),
 	))
 	admin := table.NewChain("admin")
-	admin.AddRule(rule.New(
+	admin.AddRule(newRule(
 		rule.WithName("allow-admin-http"),
 		rule.WithDstPort(80),
 		rule.WithProto(proto.TCP),
@@ -290,9 +302,9 @@ func TestEvaluateSupportsJumpChains(t *testing.T) {
 func TestEvaluateReturnsErrorForMissingJumpTarget(t *testing.T) {
 	RegisterTestingT(t)
 
-	tbl := table.New("main", 1, rule.Drop)
+	tbl := newTable("main", 1, rule.Drop)
 	entry := table.NewChain("entry")
-	entry.AddRule(rule.New(
+	entry.AddRule(newRule(
 		rule.WithName("jump-missing"),
 		rule.WithJump("missing"),
 	))
