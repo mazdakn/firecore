@@ -91,47 +91,56 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	dnsTargets := set.NewIPPortSet()
 	mustAddToSet(t, dnsTargets, "8.8.8.8,53")
 
-	policy := table.New("policy", 10, rule.Drop)
+	t1, err := table.New("policy", 10, rule.Drop)
+	Expect(err).NotTo(HaveOccurred())
+
 	entry := table.NewChain("entry")
 	admin := table.NewChain("admin")
 
-	allowEstablished := rule.New(
+	allowEstablished, err := rule.New(
 		rule.WithName("allow-established"),
 		rule.WithConnState(stateEstablished),
 		rule.WithProto(tcp),
 		rule.WithAction(accept),
 	)
-	jumpAdmin := rule.New(
+	Expect(err).NotTo(HaveOccurred())
+
+	jumpAdmin, err := rule.New(
 		rule.WithName("jump-admin"),
 		rule.WithSrcIPSet(adminSources),
 		rule.WithSrcIfaceSet(mgmtIfaces),
 		rule.WithProto(tcp),
 		rule.WithJump("admin"),
 	)
-	allowDNS := rule.New(
+	Expect(err).NotTo(HaveOccurred())
+
+	allowDNS, err := rule.New(
 		rule.WithName("allow-public-dns"),
 		rule.WithDstIPPortSet(dnsTargets),
 		rule.WithProto(udp),
 		rule.WithAction(accept),
 	)
-	allowAdminWeb := rule.New(
+	Expect(err).NotTo(HaveOccurred())
+
+	allowAdminWeb, err := rule.New(
 		rule.WithName("allow-admin-web"),
 		rule.WithDstPortSet(webPorts),
 		rule.WithProto(tcp),
 		rule.WithAction(accept),
 	)
+	Expect(err).NotTo(HaveOccurred())
 
 	entry.AddRule(allowEstablished)
 	entry.AddRule(jumpAdmin)
 	entry.AddRule(allowDNS)
 	admin.AddRule(allowAdminWeb)
 
-	policy.AddChain(entry)
-	policy.AddChain(admin)
-	policy.SetEntryChain("entry")
+	t1.AddChain(entry)
+	t1.AddChain(admin)
+	t1.SetEntryChain("entry")
 
 	engine := firecore.New(firecore.WithConntrack())
-	engine.AddTable(policy)
+	engine.AddTable(t1)
 
 	request := eval.New(
 		packet.New(
@@ -211,7 +220,7 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	Expect(allowAdminWeb.PacketCount()).To(Equal(uint64(1)))
 	Expect(allowEstablished.PacketCount()).To(Equal(uint64(1)))
 	Expect(allowDNS.PacketCount()).To(Equal(uint64(1)))
-	Expect(policy.DefaultRule.PacketCount()).To(Equal(uint64(1)))
+	Expect(t1.DefaultRule.PacketCount()).To(Equal(uint64(1)))
 }
 
 func TestPassReturnAndOrderedTables(t *testing.T) {
@@ -225,25 +234,32 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 	trustedSources := set.NewIPSet()
 	mustAddToSet(t, trustedSources, "192.0.2.0/24")
 
-	classify := table.New("classify", 1, rule.Drop)
+	classify, err := table.New("classify", 1, rule.Drop)
+	Expect(err).NotTo(HaveOccurred())
+
 	classifyEntry := table.NewChain("entry")
 	classifyReview := table.NewChain("review")
 
-	jumpReview := rule.New(
+	jumpReview, err := rule.New(
 		rule.WithName("jump-review"),
 		rule.WithJump("review"),
 	)
-	returnToEntry := rule.New(
+	Expect(err).NotTo(HaveOccurred())
+
+	returnToEntry, err := rule.New(
 		rule.WithName("return-to-entry"),
 		rule.WithAction(rule.Return),
 	)
-	passTrusted := rule.New(
+	Expect(err).NotTo(HaveOccurred())
+
+	passTrusted, err := rule.New(
 		rule.WithName("pass-trusted-app"),
 		rule.WithSrcIPSet(trustedSources),
 		rule.WithDstPort(appPort.Resolve()),
 		rule.WithProto(tcp),
 		rule.WithAction(pass),
 	)
+	Expect(err).NotTo(HaveOccurred())
 
 	classifyEntry.AddRule(jumpReview)
 	classifyEntry.AddRule(passTrusted)
@@ -252,15 +268,21 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 	classify.AddChain(classifyReview)
 	classify.SetEntryChain("entry")
 
-	policy := table.New("policy", 2, rule.Drop)
+	policy, err := table.New("policy", 2, rule.Drop)
+	Expect(err).NotTo(HaveOccurred())
+
 	policyEntry := table.NewChain("entry")
-	allowTrustedApp := rule.New(
+	Expect(err).NotTo(HaveOccurred())
+
+	allowTrustedApp, err := rule.New(
 		rule.WithName("allow-trusted-app"),
 		rule.WithSrcIPSet(trustedSources),
 		rule.WithDstPort(appPort.Resolve()),
 		rule.WithProto(tcp),
 		rule.WithAction(accept),
 	)
+	Expect(err).NotTo(HaveOccurred())
+
 	policyEntry.AddRule(allowTrustedApp)
 	policy.AddChain(policyEntry)
 	policy.SetEntryChain("entry")

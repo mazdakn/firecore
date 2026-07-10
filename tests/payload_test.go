@@ -18,16 +18,19 @@ func TestPayloadRegexPolicy(t *testing.T) {
 	accept := mustParseAction(t, "accept")
 	tcp := mustParseProto(t, "tcp")
 
-	policy := table.New("payload-policy", 1, rule.Drop)
+	policy, err := table.New("payload-policy", 1, rule.Drop)
+	Expect(err).NotTo(HaveOccurred())
+
 	entry := table.NewChain("entry")
 
-	allowAPIKey := rule.New(
+	allowAPIKey, err := rule.New(
 		rule.WithName("allow-api-key"),
 		rule.WithProto(tcp),
 		rule.WithDstPort(8443),
 		rule.WithPayload(`(?i)api_key=[A-Za-z0-9_-]+`),
 		rule.WithAction(accept),
 	)
+	Expect(err).NotTo(HaveOccurred())
 
 	entry.AddRule(allowAPIKey)
 	policy.AddChain(entry)
