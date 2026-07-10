@@ -1,4 +1,4 @@
-package table
+package firecore
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ type Table struct {
 	DefaultRule *rule.Rule
 }
 
-func New(name string, order uint64, defaultAction rule.Action) (*Table, error) {
+func NewTable(name string, order uint64, defaultAction rule.Action) (*Table, error) {
 	defaultRule, err := rule.New(
 		rule.WithAction(defaultAction),
 		rule.WithName(fmt.Sprintf("table %s default action", name)),

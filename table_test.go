@@ -1,4 +1,4 @@
-package table
+package firecore
 
 import (
 	"testing"
@@ -344,16 +344,4 @@ func TestTableMatchReturnsErrorForMissingJumpTarget(t *testing.T) {
 	Expect(matched).To(BeFalse())
 	Expect(result.Trace).To(HaveLen(1))
 	Expect(result.Trace[0].Name).To(Equal("jump-missing"))
-}
-
-func newRule(opts ...rule.RuleOption) *rule.Rule {
-	r, err := rule.New(opts...)
-	Expect(err).NotTo(HaveOccurred())
-	return r
-}
-
-func newTable(name string, order uint64, defaultAction rule.Action) *Table {
-	t, err := New(name, order, defaultAction)
-	Expect(err).NotTo(HaveOccurred())
-	return t
 }

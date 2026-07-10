@@ -6,7 +6,6 @@ import (
 	"github.com/mazdakn/firecore/conntrack"
 	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/rule"
-	"github.com/mazdakn/firecore/table"
 )
 
 type Option func(*Engine)
@@ -18,7 +17,7 @@ func WithConntrack() Option {
 }
 
 type Engine struct {
-	Tables []*table.Table
+	Tables []*Table
 
 	tracker *conntrack.Tracker
 }
@@ -31,9 +30,9 @@ func New(opts ...Option) *Engine {
 	return engine
 }
 
-func (e *Engine) AddTable(t *table.Table) {
+func (e *Engine) AddTable(t *Table) {
 	e.Tables = append(e.Tables, t)
-	table.SortTables(e.Tables)
+	SortTables(e.Tables)
 }
 
 func (e *Engine) Evaluate(ctx *eval.Context) (*eval.Result, error) {

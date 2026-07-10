@@ -11,7 +11,6 @@ import (
 	"github.com/mazdakn/firecore/proto"
 	"github.com/mazdakn/firecore/rule"
 	"github.com/mazdakn/firecore/set"
-	"github.com/mazdakn/firecore/table"
 	. "github.com/onsi/gomega"
 )
 
@@ -91,11 +90,11 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	dnsTargets := set.NewIPPortSet()
 	mustAddToSet(t, dnsTargets, "8.8.8.8,53")
 
-	t1, err := table.New("policy", 10, rule.Drop)
+	t1, err := firecore.NewTable("policy", 10, rule.Drop)
 	Expect(err).NotTo(HaveOccurred())
 
-	entry := table.NewChain("entry")
-	admin := table.NewChain("admin")
+	entry := firecore.NewChain("entry")
+	admin := firecore.NewChain("admin")
 
 	allowEstablished, err := rule.New(
 		rule.WithName("allow-established"),
@@ -234,11 +233,11 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 	trustedSources := set.NewIPSet()
 	mustAddToSet(t, trustedSources, "192.0.2.0/24")
 
-	classify, err := table.New("classify", 1, rule.Drop)
+	classify, err := firecore.NewTable("classify", 1, rule.Drop)
 	Expect(err).NotTo(HaveOccurred())
 
-	classifyEntry := table.NewChain("entry")
-	classifyReview := table.NewChain("review")
+	classifyEntry := firecore.NewChain("entry")
+	classifyReview := firecore.NewChain("review")
 
 	jumpReview, err := rule.New(
 		rule.WithName("jump-review"),
@@ -268,10 +267,10 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 	classify.AddChain(classifyReview)
 	classify.SetEntryChain("entry")
 
-	policy, err := table.New("policy", 2, rule.Drop)
+	policy, err := firecore.NewTable("policy", 2, rule.Drop)
 	Expect(err).NotTo(HaveOccurred())
 
-	policyEntry := table.NewChain("entry")
+	policyEntry := firecore.NewChain("entry")
 	Expect(err).NotTo(HaveOccurred())
 
 	allowTrustedApp, err := rule.New(

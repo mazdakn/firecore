@@ -8,7 +8,6 @@ import (
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/proto"
 	"github.com/mazdakn/firecore/rule"
-	"github.com/mazdakn/firecore/table"
 	. "github.com/onsi/gomega"
 )
 
@@ -24,8 +23,8 @@ func newRule(opts ...rule.RuleOption) *rule.Rule {
 	return r
 }
 
-func newTable(name string, order uint64, defaultAction rule.Action) *table.Table {
-	tbl, err := table.New(name, order, defaultAction)
+func newTable(name string, order uint64, defaultAction rule.Action) *Table {
+	tbl, err := NewTable(name, order, defaultAction)
 	Expect(err).NotTo(HaveOccurred())
 	return tbl
 }
@@ -58,14 +57,14 @@ func TestAddTable(t *testing.T) {
 	engine.AddTable(first)
 	engine.AddTable(second)
 
-	Expect(engine.Tables).To(Equal([]*table.Table{first, second}))
+	Expect(engine.Tables).To(Equal([]*Table{first, second}))
 }
 
 func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 	RegisterTestingT(t)
 
 	acceptTable := newTable("accept-table", 2, rule.Drop)
-	acceptChain := table.NewChain("default")
+	acceptChain := NewChain("default")
 	acceptChain.AddRule(newRule(
 		rule.WithName("accept-http"),
 		rule.WithDstPort(80),
@@ -75,7 +74,7 @@ func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 	acceptTable.AddChain(acceptChain)
 
 	passTable := newTable("pass-table", 1, rule.Drop)
-	passChain := table.NewChain("default")
+	passChain := NewChain("default")
 	passChain.AddRule(newRule(
 		rule.WithName("pass-http"),
 		rule.WithDstPort(80),
@@ -97,7 +96,7 @@ func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 	)))
 
 	Expect(err).NotTo(HaveOccurred())
-	Expect(engine.Tables).To(Equal([]*table.Table{passTable, acceptTable}))
+	Expect(engine.Tables).To(Equal([]*Table{passTable, acceptTable}))
 	Expect(result.Verdict).To(HaveValue(Equal(rule.Accept)))
 	Expect(result.Trace).To(HaveLen(2))
 	Expect(result.Trace[0].Name).To(Equal("pass-http"))
@@ -108,7 +107,7 @@ func TestEvaluatePassesToNextTable(t *testing.T) {
 	RegisterTestingT(t)
 
 	passTable := newTable("pass-table", 1, rule.Drop)
-	passChain := table.NewChain("default")
+	passChain := NewChain("default")
 	passChain.AddRule(newRule(
 		rule.WithName("pass-http"),
 		rule.WithDstPort(80),
@@ -118,7 +117,7 @@ func TestEvaluatePassesToNextTable(t *testing.T) {
 	passTable.AddChain(passChain)
 
 	acceptTable := newTable("accept-table", 2, rule.Drop)
-	acceptChain := table.NewChain("default")
+	acceptChain := NewChain("default")
 	acceptChain.AddRule(newRule(
 		rule.WithName("accept-http"),
 		rule.WithDstPort(80),
@@ -150,7 +149,7 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 	RegisterTestingT(t)
 
 	stateful := newTable("stateful", 1, rule.Drop)
-	defaultChain := table.NewChain("default")
+	defaultChain := NewChain("default")
 	defaultChain.AddRule(newRule(
 		rule.WithName("allow-new-http"),
 		rule.WithConnState(conntrack.StateNew),
@@ -205,7 +204,7 @@ func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 	RegisterTestingT(t)
 
 	stateful := newTable("stateful", 1, rule.Drop)
-	defaultChain := table.NewChain("default")
+	defaultChain := NewChain("default")
 	defaultChain.AddRule(newRule(
 		rule.WithName("allow-new-http"),
 		rule.WithConnState(conntrack.StateNew),
@@ -260,7 +259,7 @@ func TestEvaluateSupportsJumpChains(t *testing.T) {
 	RegisterTestingT(t)
 
 	tbl := newTable("main", 1, rule.Drop)
-	entry := table.NewChain("entry")
+	entry := NewChain("entry")
 	entry.AddRule(newRule(
 		rule.WithName("jump-admin"),
 		rule.WithSrcNet("10.0.0.0/8"),
@@ -270,7 +269,7 @@ func TestEvaluateSupportsJumpChains(t *testing.T) {
 		rule.WithName("deny-all"),
 		rule.WithAction(rule.Drop),
 	))
-	admin := table.NewChain("admin")
+	admin := NewChain("admin")
 	admin.AddRule(newRule(
 		rule.WithName("allow-admin-http"),
 		rule.WithDstPort(80),
@@ -303,7 +302,7 @@ func TestEvaluateReturnsErrorForMissingJumpTarget(t *testing.T) {
 	RegisterTestingT(t)
 
 	tbl := newTable("main", 1, rule.Drop)
-	entry := table.NewChain("entry")
+	entry := NewChain("entry")
 	entry.AddRule(newRule(
 		rule.WithName("jump-missing"),
 		rule.WithJump("missing"),

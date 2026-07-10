@@ -8,7 +8,6 @@ import (
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/proto"
 	"github.com/mazdakn/firecore/rule"
-	"github.com/mazdakn/firecore/table"
 	. "github.com/onsi/gomega"
 )
 
@@ -18,10 +17,10 @@ func TestPayloadRegexPolicy(t *testing.T) {
 	accept := mustParseAction(t, "accept")
 	tcp := mustParseProto(t, "tcp")
 
-	policy, err := table.New("payload-policy", 1, rule.Drop)
+	policy, err := firecore.NewTable("payload-policy", 1, rule.Drop)
 	Expect(err).NotTo(HaveOccurred())
 
-	entry := table.NewChain("entry")
+	entry := firecore.NewChain("entry")
 
 	allowAPIKey, err := rule.New(
 		rule.WithName("allow-api-key"),
