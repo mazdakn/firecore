@@ -48,24 +48,25 @@ func NewTracker() *Tracker {
 	}
 }
 
-func (t *Tracker) Lookup(pkt *packet.Packet) State {
+func (t *Tracker) Lookup(pkt *packet.Packet) (State, error) {
 	if pkt == nil {
-		panic("conntrack.Lookup: nil packet")
+		return "", fmt.Errorf("conntrack.Lookup: nil packet")
 	}
 	if state, ok := t.entries[keyFromPacket(pkt)]; ok {
-		return state
+		return state, nil
 	}
-	return StateNew
+	return StateNew, nil
 }
 
-func (t *Tracker) CommitAccepted(pkt *packet.Packet) {
+func (t *Tracker) CommitAccepted(pkt *packet.Packet) error {
 	if pkt == nil {
-		panic("conntrack.CommitAccepted: nil packet")
+		return fmt.Errorf("conntrack.CommitAccepted: nil packet")
 	}
 	forward := keyFromPacket(pkt)
 	reverse := reverseKeyFromPacket(pkt)
 	t.entries[forward] = StateEstablished
 	t.entries[reverse] = StateEstablished
+	return nil
 }
 
 func keyFromPacket(pkt *packet.Packet) key {

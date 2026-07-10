@@ -42,11 +42,36 @@ func TestTrackerLookupAndCommitAccepted(t *testing.T) {
 		packet.WithProto(proto.TCP),
 	)
 
-	Expect(tracker.Lookup(request)).To(Equal(StateNew))
-	Expect(tracker.Lookup(reply)).To(Equal(StateNew))
+	state, err := tracker.Lookup(request)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(state).To(Equal(StateNew))
 
-	tracker.CommitAccepted(request)
+	state, err = tracker.Lookup(reply)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(state).To(Equal(StateNew))
 
-	Expect(tracker.Lookup(request)).To(Equal(StateEstablished))
-	Expect(tracker.Lookup(reply)).To(Equal(StateEstablished))
+	Expect(tracker.CommitAccepted(request)).To(Succeed())
+
+	state, err = tracker.Lookup(request)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(state).To(Equal(StateEstablished))
+
+	state, err = tracker.Lookup(reply)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(state).To(Equal(StateEstablished))
+}
+
+func TestTrackerLookupReturnsErrorForNilPacket(t *testing.T) {
+	RegisterTestingT(t)
+
+	tracker := NewTracker()
+	_, err := tracker.Lookup(nil)
+	Expect(err).To(HaveOccurred())
+}
+
+func TestTrackerCommitAcceptedReturnsErrorForNilPacket(t *testing.T) {
+	RegisterTestingT(t)
+
+	tracker := NewTracker()
+	Expect(tracker.CommitAccepted(nil)).To(HaveOccurred())
 }

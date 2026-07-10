@@ -46,7 +46,10 @@ func (e *Engine) Evaluate(ctx *eval.Context) (*eval.Result, error) {
 
 	result := &eval.Result{}
 	if e.tracker != nil {
-		state := e.tracker.Lookup(ctx.Packet)
+		state, err := e.tracker.Lookup(ctx.Packet)
+		if err != nil {
+			return nil, fmt.Errorf("evaluate: %w", err)
+		}
 		ctx.ConnState = &state
 	} else {
 		ctx.ConnState = nil
@@ -66,7 +69,9 @@ func (e *Engine) Evaluate(ctx *eval.Context) (*eval.Result, error) {
 		result.Verdict = nil
 	}
 	if e.tracker != nil && result.Verdict != nil && *result.Verdict == rule.Accept {
-		e.tracker.CommitAccepted(ctx.Packet)
+		if err := e.tracker.CommitAccepted(ctx.Packet); err != nil {
+			return nil, fmt.Errorf("evaluate: %w", err)
+		}
 	}
 
 	return result, nil
