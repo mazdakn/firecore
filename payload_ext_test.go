@@ -1,4 +1,4 @@
-package tests
+package firecore_test
 
 import (
 	"testing"
