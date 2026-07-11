@@ -87,13 +87,13 @@ func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 	engine.AddTable(acceptTable)
 	engine.AddTable(passTable)
 
-	result, err := engine.Evaluate(eval.New(packet.New(
+	result, err := engine.Evaluate(packet.New(
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 		packet.WithProto(proto.TCP),
 		packet.WithSrcPort(12345),
 		packet.WithDstPort(80),
-	)))
+	))
 
 	Expect(err).NotTo(HaveOccurred())
 	Expect(engine.Tables).To(Equal([]*Table{passTable, acceptTable}))
@@ -130,13 +130,13 @@ func TestEvaluatePassesToNextTable(t *testing.T) {
 	engine.AddTable(passTable)
 	engine.AddTable(acceptTable)
 
-	result, err := engine.Evaluate(eval.New(packet.New(
+	result, err := engine.Evaluate(packet.New(
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 		packet.WithProto(proto.TCP),
 		packet.WithSrcPort(12345),
 		packet.WithDstPort(80),
-	)))
+	))
 
 	Expect(err).NotTo(HaveOccurred())
 	Expect(result.Verdict).To(HaveValue(Equal(rule.Accept)))
@@ -165,25 +165,21 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 	))
 	stateful.AddChain(defaultChain)
 
-	request := eval.New(
-		packet.New(
-			packet.WithName("request"),
-			packet.WithSrcAddr("10.0.0.1"),
-			packet.WithDstAddr("1.1.1.1"),
-			packet.WithProto(proto.TCP),
-			packet.WithSrcPort(12345),
-			packet.WithDstPort(80),
-		),
+	request := packet.New(
+		packet.WithName("request"),
+		packet.WithSrcAddr("10.0.0.1"),
+		packet.WithDstAddr("1.1.1.1"),
+		packet.WithProto(proto.TCP),
+		packet.WithSrcPort(12345),
+		packet.WithDstPort(80),
 	)
-	reply := eval.New(
-		packet.New(
-			packet.WithName("reply"),
-			packet.WithSrcAddr("1.1.1.1"),
-			packet.WithDstAddr("10.0.0.1"),
-			packet.WithProto(proto.TCP),
-			packet.WithSrcPort(80),
-			packet.WithDstPort(12345),
-		),
+	reply := packet.New(
+		packet.WithName("reply"),
+		packet.WithSrcAddr("1.1.1.1"),
+		packet.WithDstAddr("10.0.0.1"),
+		packet.WithProto(proto.TCP),
+		packet.WithSrcPort(80),
+		packet.WithDstPort(12345),
 	)
 
 	engine := New(WithConntrack())
@@ -194,9 +190,9 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 	replyResult, err := engine.Evaluate(reply)
 
 	Expect(err).NotTo(HaveOccurred())
-	Expect(request.ConnState).To(HaveValue(Equal(conntrack.StateNew)))
+	Expect(requestResult.ConnState).To(HaveValue(Equal(conntrack.StateNew)))
 	expectMatchResult(requestResult, rule.Accept, "allow-new-http")
-	Expect(reply.ConnState).To(HaveValue(Equal(conntrack.StateEstablished)))
+	Expect(replyResult.ConnState).To(HaveValue(Equal(conntrack.StateEstablished)))
 	expectMatchResult(replyResult, rule.Accept, "allow-established")
 }
 
@@ -220,25 +216,21 @@ func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 	))
 	stateful.AddChain(defaultChain)
 
-	request := eval.New(
-		packet.New(
-			packet.WithName("request"),
-			packet.WithSrcAddr("10.0.0.1"),
-			packet.WithDstAddr("1.1.1.1"),
-			packet.WithProto(proto.TCP),
-			packet.WithSrcPort(12345),
-			packet.WithDstPort(80),
-		),
+	request := packet.New(
+		packet.WithName("request"),
+		packet.WithSrcAddr("10.0.0.1"),
+		packet.WithDstAddr("1.1.1.1"),
+		packet.WithProto(proto.TCP),
+		packet.WithSrcPort(12345),
+		packet.WithDstPort(80),
 	)
-	reply := eval.New(
-		packet.New(
-			packet.WithName("reply"),
-			packet.WithSrcAddr("1.1.1.1"),
-			packet.WithDstAddr("10.0.0.1"),
-			packet.WithProto(proto.TCP),
-			packet.WithSrcPort(80),
-			packet.WithDstPort(12345),
-		),
+	reply := packet.New(
+		packet.WithName("reply"),
+		packet.WithSrcAddr("1.1.1.1"),
+		packet.WithDstAddr("10.0.0.1"),
+		packet.WithProto(proto.TCP),
+		packet.WithSrcPort(80),
+		packet.WithDstPort(12345),
 	)
 
 	engine := New()
@@ -249,9 +241,9 @@ func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 	replyResult, err := engine.Evaluate(reply)
 
 	Expect(err).NotTo(HaveOccurred())
-	Expect(request.ConnState).To(BeNil())
+	Expect(requestResult.ConnState).To(BeNil())
 	expectMatchResult(requestResult, rule.Accept, "allow-new-http")
-	Expect(reply.ConnState).To(BeNil())
+	Expect(replyResult.ConnState).To(BeNil())
 	expectMatchResult(replyResult, rule.Drop, "table stateful default action")
 }
 
@@ -283,13 +275,13 @@ func TestEvaluateSupportsJumpChains(t *testing.T) {
 	engine := New()
 	engine.AddTable(tbl)
 
-	result, err := engine.Evaluate(eval.New(packet.New(
+	result, err := engine.Evaluate(packet.New(
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 		packet.WithProto(proto.TCP),
 		packet.WithSrcPort(12345),
 		packet.WithDstPort(80),
-	)))
+	))
 
 	Expect(err).NotTo(HaveOccurred())
 	Expect(result.Verdict).To(HaveValue(Equal(rule.Accept)))
@@ -313,10 +305,10 @@ func TestEvaluateReturnsErrorForMissingJumpTarget(t *testing.T) {
 	engine := New()
 	engine.AddTable(tbl)
 
-	result, err := engine.Evaluate(eval.New(packet.New(
+	result, err := engine.Evaluate(packet.New(
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
-	)))
+	))
 
 	Expect(err).To(MatchError(`evaluate in table "main": chain "missing" not found`))
 	Expect(result).To(BeNil())

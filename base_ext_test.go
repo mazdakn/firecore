@@ -141,48 +141,40 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	engine := firecore.New(firecore.WithConntrack())
 	engine.AddTable(t1)
 
-	request := eval.New(
-		packet.New(
-			packet.WithName("admin-request"),
-			packet.WithSrcAddr("10.1.2.3"),
-			packet.WithDstAddr("172.16.0.10"),
-			packet.WithIngressIface("mgmt0"),
-			packet.WithProto(tcp),
-			packet.WithSrcPort(42424),
-			packet.WithDstPort(https.Resolve()),
-		),
+	request := packet.New(
+		packet.WithName("admin-request"),
+		packet.WithSrcAddr("10.1.2.3"),
+		packet.WithDstAddr("172.16.0.10"),
+		packet.WithIngressIface("mgmt0"),
+		packet.WithProto(tcp),
+		packet.WithSrcPort(42424),
+		packet.WithDstPort(https.Resolve()),
 	)
-	reply := eval.New(
-		packet.New(
-			packet.WithName("admin-reply"),
-			packet.WithSrcAddr("172.16.0.10"),
-			packet.WithDstAddr("10.1.2.3"),
-			packet.WithEgressIface("mgmt0"),
-			packet.WithProto(tcp),
-			packet.WithSrcPort(https.Resolve()),
-			packet.WithDstPort(42424),
-		),
+	reply := packet.New(
+		packet.WithName("admin-reply"),
+		packet.WithSrcAddr("172.16.0.10"),
+		packet.WithDstAddr("10.1.2.3"),
+		packet.WithEgressIface("mgmt0"),
+		packet.WithProto(tcp),
+		packet.WithSrcPort(https.Resolve()),
+		packet.WithDstPort(42424),
 	)
-	dnsQuery := eval.New(
-		packet.New(
-			packet.WithName("dns-query"),
-			packet.WithSrcAddr("192.0.2.10"),
-			packet.WithDstAddr("8.8.8.8"),
-			packet.WithProto(udp),
-			packet.WithSrcPort(53000),
-			packet.WithDstPort(53),
-		),
+	dnsQuery := packet.New(
+		packet.WithName("dns-query"),
+		packet.WithSrcAddr("192.0.2.10"),
+		packet.WithDstAddr("8.8.8.8"),
+		packet.WithProto(udp),
+		packet.WithSrcPort(53000),
+		packet.WithDstPort(53),
 	)
-	outsider := eval.New(
-		packet.New(
-			packet.WithName("outsider"),
-			packet.WithSrcAddr("192.0.2.11"),
-			packet.WithDstAddr("172.16.0.10"),
-			packet.WithIngressIface("eth0"),
-			packet.WithProto(tcp),
-			packet.WithSrcPort(41000),
-			packet.WithDstPort(443),
-		),
+	outsider := packet.New(
+		packet.WithName("outsider"),
+		packet.WithSrcAddr("192.0.2.11"),
+		packet.WithDstAddr("172.16.0.10"),
+		packet.WithIngressIface("eth0"),
+		packet.WithProto(tcp),
+		packet.WithSrcPort(41000),
+		packet.WithDstPort(443),
 	)
 
 	requestResult, err := engine.Evaluate(request)
@@ -194,19 +186,19 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	outsiderResult, err := engine.Evaluate(outsider)
 
 	Expect(err).NotTo(HaveOccurred())
-	Expect(request.ConnState).To(HaveValue(Equal(conntrack.StateNew)))
+	Expect(requestResult.ConnState).To(HaveValue(Equal(conntrack.StateNew)))
 	expectMatchResult(requestResult, accept, "allow-admin-web")
 	Expect(requestResult.Trace).To(HaveLen(3))
 	Expect(requestResult.Trace[0].Name).To(Equal("allow-established"))
 	Expect(requestResult.Trace[1].Name).To(Equal("jump-admin"))
 	Expect(requestResult.Trace[2].Name).To(Equal("allow-admin-web"))
 
-	Expect(reply.ConnState).To(HaveValue(Equal(stateEstablished)))
+	Expect(replyResult.ConnState).To(HaveValue(Equal(stateEstablished)))
 	expectMatchResult(replyResult, accept, "allow-established")
 	Expect(replyResult.Trace).To(HaveLen(1))
 	Expect(replyResult.Trace[0].Name).To(Equal("allow-established"))
 
-	Expect(dnsQuery.ConnState).To(HaveValue(Equal(conntrack.StateNew)))
+	Expect(dnsQueryResult.ConnState).To(HaveValue(Equal(conntrack.StateNew)))
 	expectMatchResult(dnsQueryResult, accept, "allow-public-dns")
 	Expect(dnsQueryResult.Trace).To(HaveLen(3))
 	Expect(dnsQueryResult.Trace[2].Name).To(Equal("allow-public-dns"))
@@ -290,17 +282,15 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 	engine.AddTable(classify)
 	engine.AddTable(policy)
 
-	ctx := eval.New(
-		packet.New(
-			packet.WithSrcAddr("192.0.2.25"),
-			packet.WithDstAddr("198.51.100.10"),
-			packet.WithProto(tcp),
-			packet.WithSrcPort(45000),
-			packet.WithDstPort(appPort.Resolve()),
-		),
+	pkt := packet.New(
+		packet.WithSrcAddr("192.0.2.25"),
+		packet.WithDstAddr("198.51.100.10"),
+		packet.WithProto(tcp),
+		packet.WithSrcPort(45000),
+		packet.WithDstPort(appPort.Resolve()),
 	)
 
-	result, err := engine.Evaluate(ctx)
+	result, err := engine.Evaluate(pkt)
 
 	Expect(err).NotTo(HaveOccurred())
 	expectMatchResult(result, accept, "allow-trusted-app")

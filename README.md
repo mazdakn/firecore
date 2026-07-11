@@ -20,7 +20,6 @@ import (
 	"fmt"
 
 	firecore "github.com/mazdakn/firecore"
-	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/proto"
 	"github.com/mazdakn/firecore/rule"
@@ -50,15 +49,15 @@ func main() {
 	engine := firecore.New()
 	engine.AddTable(policy)
 
-	ctx := eval.New(packet.New(
+	pkt := packet.New(
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 		packet.WithProto(proto.TCP),
 		packet.WithSrcPort(12345),
 		packet.WithDstPort(80),
-	))
+	)
 
-	result, err := engine.Evaluate(ctx)
+	result, err := engine.Evaluate(pkt)
 	if err != nil {
 		panic(err)
 	}
@@ -75,7 +74,7 @@ See **[docs/GUIDE.md](docs/GUIDE.md)** for the complete reference: core concepts
 |---|---|
 | `firecore` (root) | `Engine`, `Table`, `Chain` — builds and runs the evaluation pipeline |
 | `rule` | `Rule`, `Action`, and the `With*` functional options used to match packets |
-| `eval` | `Context` (evaluation input) and `Result` (verdict + rule trace) |
+| `eval` | `Result` — verdict, rule trace, and conntrack state from `Engine.Evaluate` |
 | `packet` | `Packet` — the metadata a rule matches against |
 | `proto` | IP protocol numbers/names (tcp, udp, icmp, ...) |
 | `port` | Port numbers, well-known names, and ranges |

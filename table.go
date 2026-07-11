@@ -7,6 +7,7 @@ import (
 
 	"github.com/mazdakn/firecore/conntrack"
 	"github.com/mazdakn/firecore/eval"
+	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/rule"
 )
 
@@ -123,11 +124,8 @@ func (t *Table) Validate() error {
 	return nil
 }
 
-func (t *Table) Match(ctx *eval.Context, result *eval.Result) (bool, error) {
-	if ctx == nil {
-		return false, fmt.Errorf("nil context")
-	}
-	if ctx.Packet == nil {
+func (t *Table) Match(pkt *packet.Packet, result *eval.Result) (bool, error) {
+	if pkt == nil {
 		return false, fmt.Errorf("nil packet")
 	}
 	if result == nil {
@@ -136,7 +134,7 @@ func (t *Table) Match(ctx *eval.Context, result *eval.Result) (bool, error) {
 
 	entry, ok := t.Chains[t.entryChain]
 	if ok {
-		matchResult, err := entry.match(ctx, result, t.Chains, 0)
+		matchResult, err := entry.match(pkt, result, t.Chains, 0)
 		if err != nil {
 			return false, err
 		}
@@ -211,7 +209,7 @@ func (c *Chain) AddRule(r *rule.Rule) {
 	c.Rules[i] = r
 }
 
-// match evaluates the chain's rules against mc.
+// match evaluates the chain's rules against pkt.
 //
 // chains is the complete map of chains in the parent table, used to resolve
 // Jump targets. depth counts the number of nested Jump calls taken to reach
@@ -222,17 +220,17 @@ func (c *Chain) AddRule(r *rule.Rule) {
 // Returns chainDecided if a terminal verdict (Accept/Drop) was set, chainPass
 // if a Pass action was triggered, or chainContinue if evaluation should return
 // to the calling context (Return action or no rule matched).
-func (c *Chain) match(ctx *eval.Context, result *eval.Result, chains map[string]*Chain, depth int) (chainMatchResult, error) {
+func (c *Chain) match(pkt *packet.Packet, result *eval.Result, chains map[string]*Chain, depth int) (chainMatchResult, error) {
 	if depth > MaxJumpDepth {
 		return chainContinue, fmt.Errorf("jump depth exceeded %d at chain %q: possible jump cycle", MaxJumpDepth, c.Name)
 	}
 	var state conntrack.State
-	if ctx.ConnState != nil {
-		state = *ctx.ConnState
+	if result.ConnState != nil {
+		state = *result.ConnState
 	}
 	for _, r := range c.Rules {
 		result.Trace = append(result.Trace, r)
-		if r.MatchWithConntrackState(ctx.Packet, state) {
+		if r.MatchWithConntrackState(pkt, state) {
 			switch r.Action {
 			case rule.Accept, rule.Drop:
 				result.Verdict = &r.Action
@@ -247,7 +245,7 @@ func (c *Chain) match(ctx *eval.Context, result *eval.Result, chains map[string]
 				if !ok {
 					return chainContinue, fmt.Errorf("chain %q not found", r.JumpTarget)
 				}
-				matchResult, err := target.match(ctx, result, chains, depth+1)
+				matchResult, err := target.match(pkt, result, chains, depth+1)
 				if err != nil {
 					return chainContinue, err
 				}

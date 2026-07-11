@@ -37,18 +37,18 @@ func New(opts ...Option) *Engine
 func WithConntrack() Option
 
 func (e *Engine) AddTable(t *Table)
-func (e *Engine) Evaluate(ctx *eval.Context) (*eval.Result, error)
+func (e *Engine) Evaluate(pkt *packet.Packet) (*eval.Result, error)
 ```
 
 - `New` builds an engine. Pass `WithConntrack()` to enable new/established connection-state tracking (see [Connection tracking](#connection-tracking)).
 - `AddTable` registers a table and keeps `Engine.Tables` sorted ascending by `Table.Order`.
-- `Evaluate` runs `ctx.Packet` through each table in order:
-  - If conntrack is enabled, it looks up the connection state and sets `ctx.ConnState` before matching.
+- `Evaluate` runs `pkt` through each table in order:
+  - If conntrack is enabled, it looks up the connection state and sets `result.ConnState` before matching.
   - Tables are tried in ascending `Order` until one produces a terminal verdict (`Accept`/`Drop`) — evaluation stops there.
   - A table that returns `Pass` doesn't decide anything; the packet falls through to the next table.
   - If no table decides, `result.Verdict` is `nil`.
   - If the final verdict is `Accept` and conntrack is enabled, the connection is committed as established (both directions).
-- Returns an error if `ctx`/`ctx.Packet` is nil, or if a table's `Match` fails (e.g. a rule jumps to a chain that doesn't exist).
+- Returns an error if `pkt` is nil, or if a table's `Match` fails (e.g. a rule jumps to a chain that doesn't exist).
 
 ### Table
 
@@ -61,7 +61,7 @@ func (t *Table) AddChain(c *Chain)
 func (t *Table) SetEntryChain(name string)
 func (t *Table) EntryChain() string
 func (t *Table) Validate() error
-func (t *Table) Match(ctx *eval.Context, result *eval.Result) (bool, error)
+func (t *Table) Match(pkt *packet.Packet, result *eval.Result) (bool, error)
 func (t *Table) MatchDefaultRule(result *eval.Result) bool
 
 func SortTables(tables []*Table)
@@ -195,9 +195,9 @@ func (t *Tracker) Lookup(pkt *packet.Packet) (State, error)
 func (t *Tracker) CommitAccepted(pkt *packet.Packet) error
 ```
 
-Pass `firecore.WithConntrack()` to `firecore.New` to enable this. On each `Evaluate` call the engine looks up `ctx.Packet`'s state (`StateNew` if unseen) and stores it on `ctx.ConnState`; rules can then match on it with `rule.WithConnState(conntrack.StateEstablished)`. When a packet is finally `Accept`ed, both directions of the flow (src↔dst swapped) are recorded as `StateEstablished`, so a reply packet on the same flow is recognized without re-walking the full rule set.
+Pass `firecore.WithConntrack()` to `firecore.New` to enable this. On each `Evaluate` call the engine looks up the packet's state (`StateNew` if unseen) and stores it on `result.ConnState`; rules can then match on it with `rule.WithConnState(conntrack.StateEstablished)`. When a packet is finally `Accept`ed, both directions of the flow (src↔dst swapped) are recorded as `StateEstablished`, so a reply packet on the same flow is recognized without re-walking the full rule set.
 
-Without `WithConntrack()`, `ctx.ConnState` stays `nil` and connection-state rules never match.
+Without `WithConntrack()`, `result.ConnState` stays `nil` and connection-state rules never match.
 
 ## Packets
 
@@ -215,7 +215,7 @@ func WithEgressIface(string) PacketOption
 func WithPayload([]byte) PacketOption
 ```
 
-`packet.New` builds a `*Packet` (`SrcAddr`, `DstAddr net.IP`; `Proto proto.Proto`; `SrcPort`, `DstPort uint16`; `Payload []byte`; `Metadata *Metadata` holding `Name`, `IngressIface`, `EgressIface`). Wrap it for evaluation with `eval.New(pkt)`, which returns an `*eval.Context` — the input to `Engine.Evaluate`. `eval.Result` (the output) has `Verdict *rule.Action` and `Trace []*rule.Rule`.
+`packet.New` builds a `*Packet` (`SrcAddr`, `DstAddr net.IP`; `Proto proto.Proto`; `SrcPort`, `DstPort uint16`; `Payload []byte`; `Metadata *Metadata` holding `Name`, `IngressIface`, `EgressIface`). Pass it directly to `Engine.Evaluate(pkt)`. `eval.Result` (the output) has `Verdict *rule.Action`, `Trace []*rule.Rule`, and `ConnState *conntrack.State` (nil unless conntrack is enabled).
 
 ## Sets
 
@@ -286,7 +286,7 @@ Every `Rule` (including a table's `DefaultRule`) carries an atomic counter, incr
 
 - `rule.New`: an invalid CIDR string (`WithSrcNet`/`WithDstNet`), or an unparsable regex (`WithPayload`).
 - `firecore.NewTable`: failure constructing the internal default rule (mirrors `rule.New`'s failure modes for the default action).
-- `Engine.Evaluate`: nil context/packet, a `WithJump` target chain that doesn't exist in the table, a jump cycle that exceeds `MaxJumpDepth`, or (with conntrack enabled) a nil packet reaching the tracker. Call `Table.Validate()` after building a table to catch a dangling jump target or a cycle before evaluation.
+- `Engine.Evaluate`: a nil packet, a `WithJump` target chain that doesn't exist in the table, a jump cycle that exceeds `MaxJumpDepth`, or (with conntrack enabled) a nil packet reaching the tracker. Call `Table.Validate()` after building a table to catch a dangling jump target or a cycle before evaluation.
 
 ## Worked example: jump, return, and pass across tables
 
@@ -336,13 +336,13 @@ engine := firecore.New()
 engine.AddTable(classify)
 engine.AddTable(policy)
 
-result, _ := engine.Evaluate(eval.New(packet.New(
+result, _ := engine.Evaluate(packet.New(
     packet.WithSrcAddr("192.0.2.25"),
     packet.WithDstAddr("198.51.100.10"),
     packet.WithProto(proto.TCP),
     packet.WithSrcPort(45000),
     packet.WithDstPort(8080),
-)))
+))
 
 // result.Verdict == Accept, decided by policy's allow-trusted-app.
 // result.Trace, in order:

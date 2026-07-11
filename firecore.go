@@ -5,6 +5,7 @@ import (
 
 	"github.com/mazdakn/firecore/conntrack"
 	"github.com/mazdakn/firecore/eval"
+	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/rule"
 )
 
@@ -35,27 +36,22 @@ func (e *Engine) AddTable(t *Table) {
 	SortTables(e.Tables)
 }
 
-func (e *Engine) Evaluate(ctx *eval.Context) (*eval.Result, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("evaluate: nil context")
-	}
-	if ctx.Packet == nil {
+func (e *Engine) Evaluate(pkt *packet.Packet) (*eval.Result, error) {
+	if pkt == nil {
 		return nil, fmt.Errorf("evaluate: nil packet")
 	}
 
 	result := &eval.Result{}
 	if e.tracker != nil {
-		state, err := e.tracker.Lookup(ctx.Packet)
+		state, err := e.tracker.Lookup(pkt)
 		if err != nil {
 			return nil, fmt.Errorf("evaluate: %w", err)
 		}
-		ctx.ConnState = &state
-	} else {
-		ctx.ConnState = nil
+		result.ConnState = &state
 	}
 	decided := false
 	for _, t := range e.Tables {
-		matched, err := t.Match(ctx, result)
+		matched, err := t.Match(pkt, result)
 		if err != nil {
 			return nil, fmt.Errorf("evaluate in table %q: %w", t.Name, err)
 		}
@@ -68,7 +64,7 @@ func (e *Engine) Evaluate(ctx *eval.Context) (*eval.Result, error) {
 		result.Verdict = nil
 	}
 	if e.tracker != nil && result.Verdict != nil && *result.Verdict == rule.Accept {
-		if err := e.tracker.CommitAccepted(ctx.Packet); err != nil {
+		if err := e.tracker.CommitAccepted(pkt); err != nil {
 			return nil, fmt.Errorf("evaluate: %w", err)
 		}
 	}

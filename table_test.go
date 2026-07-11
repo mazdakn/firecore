@@ -86,9 +86,8 @@ func TestTableMatchUsesAscendingOrder(t *testing.T) {
 	chain.AddRule(lowOrderAccept)
 	tbl.AddChain(chain)
 
-	mc := eval.Context{Packet: pkt}
 	result := &eval.Result{}
-	matched, err := tbl.Match(&mc, result)
+	matched, err := tbl.Match(pkt, result)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(matched).To(BeTrue())
 	Expect(result.Verdict).To(HaveValue(Equal(rule.Accept)))
@@ -112,9 +111,8 @@ func TestTableMatchPassContinuesToNextTable(t *testing.T) {
 	chain.AddRule(passRule)
 	tbl.AddChain(chain)
 
-	mc := eval.Context{Packet: pkt}
 	result := &eval.Result{}
-	matched, err := tbl.Match(&mc, result)
+	matched, err := tbl.Match(pkt, result)
 
 	Expect(err).NotTo(HaveOccurred())
 	Expect(matched).To(BeFalse())
@@ -142,9 +140,8 @@ func TestTableMatchPassRuleDoesNotEvaluateDefaultAction(t *testing.T) {
 	chain.AddRule(passRule)
 	tbl.AddChain(chain)
 
-	mc := eval.Context{Packet: pkt}
 	result := &eval.Result{}
-	matched, err := tbl.Match(&mc, result)
+	matched, err := tbl.Match(pkt, result)
 
 	Expect(err).NotTo(HaveOccurred())
 	Expect(matched).To(BeFalse())
@@ -167,9 +164,8 @@ func TestTableMatchNoRuleAndDefaultPassReturnsNoMatchVerdict(t *testing.T) {
 		packet.WithDstPort(80),
 	)
 
-	mc := eval.Context{Packet: pkt}
 	result := &eval.Result{}
-	matched, err := tbl.Match(&mc, result)
+	matched, err := tbl.Match(pkt, result)
 
 	Expect(err).NotTo(HaveOccurred())
 	Expect(matched).To(BeFalse())
@@ -206,9 +202,8 @@ func TestTableJumpToChainAndReturn(t *testing.T) {
 	tbl.AddChain(mainChain)
 	tbl.AddChain(helperChain)
 
-	mc := eval.Context{Packet: pkt}
 	result := &eval.Result{}
-	matched, err := tbl.Match(&mc, result)
+	matched, err := tbl.Match(pkt, result)
 
 	Expect(matched).To(BeTrue())
 	Expect(err).NotTo(HaveOccurred())
@@ -245,9 +240,8 @@ func TestTableJumpChainNoMatchReturnsToCaller(t *testing.T) {
 	tbl.AddChain(mainChain)
 	tbl.AddChain(helperChain)
 
-	mc := eval.Context{Packet: pkt}
 	result := &eval.Result{}
-	matched, err := tbl.Match(&mc, result)
+	matched, err := tbl.Match(pkt, result)
 
 	// helper chain returned, entry chain fell through → default Drop
 	Expect(err).NotTo(HaveOccurred())
@@ -270,9 +264,8 @@ func TestTableMatchNilDefaultRuleReturnsNoMatch(t *testing.T) {
 		packet.WithDstPort(80),
 	)
 
-	mc := eval.Context{Packet: pkt}
 	result := &eval.Result{}
-	matched, err := tbl.Match(&mc, result)
+	matched, err := tbl.Match(pkt, result)
 
 	Expect(err).NotTo(HaveOccurred())
 	Expect(matched).To(BeFalse())
@@ -308,9 +301,8 @@ func TestTableReturnActionReturnsToCallerChain(t *testing.T) {
 	tbl.AddChain(mainChain)
 	tbl.AddChain(helperChain)
 
-	mc := eval.Context{Packet: pkt}
 	result := &eval.Result{}
-	matched, err := tbl.Match(&mc, result)
+	matched, err := tbl.Match(pkt, result)
 
 	// Return in helper → continues in main after jump-to-helper → accept-all
 	Expect(err).NotTo(HaveOccurred())
@@ -336,9 +328,8 @@ func TestTableMatchReturnsErrorForMissingJumpTarget(t *testing.T) {
 		packet.WithDstAddr("1.1.1.1"),
 	)
 
-	mc := eval.Context{Packet: pkt}
 	result := &eval.Result{}
-	matched, err := tbl.Match(&mc, result)
+	matched, err := tbl.Match(pkt, result)
 
 	Expect(err).To(MatchError(`chain "missing" not found`))
 	Expect(matched).To(BeFalse())
@@ -470,9 +461,8 @@ func TestTableMatchReturnsErrorWhenJumpDepthExceeded(t *testing.T) {
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 	)
-	mc := eval.Context{Packet: pkt}
 	result := &eval.Result{}
-	matched, err := tbl.Match(&mc, result)
+	matched, err := tbl.Match(pkt, result)
 
 	Expect(matched).To(BeFalse())
 	Expect(err).To(MatchError(ContainSubstring("jump depth exceeded")))

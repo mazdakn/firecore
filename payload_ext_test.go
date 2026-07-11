@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	firecore "github.com/mazdakn/firecore"
-	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/proto"
 	"github.com/mazdakn/firecore/rule"
@@ -38,28 +37,24 @@ func TestPayloadRegexPolicy(t *testing.T) {
 	engine := firecore.New()
 	engine.AddTable(policy)
 
-	allowed := eval.New(
-		packet.New(
-			packet.WithName("allowed-api-request"),
-			packet.WithSrcAddr("192.0.2.10"),
-			packet.WithDstAddr("198.51.100.25"),
-			packet.WithProto(proto.TCP),
-			packet.WithSrcPort(54000),
-			packet.WithDstPort(8443),
-			packet.WithPayload([]byte("GET /v1/data?api_key=test-123 HTTP/1.1")),
-		),
+	allowed := packet.New(
+		packet.WithName("allowed-api-request"),
+		packet.WithSrcAddr("192.0.2.10"),
+		packet.WithDstAddr("198.51.100.25"),
+		packet.WithProto(proto.TCP),
+		packet.WithSrcPort(54000),
+		packet.WithDstPort(8443),
+		packet.WithPayload([]byte("GET /v1/data?api_key=test-123 HTTP/1.1")),
 	)
 
-	blocked := eval.New(
-		packet.New(
-			packet.WithName("blocked-api-request"),
-			packet.WithSrcAddr("192.0.2.11"),
-			packet.WithDstAddr("198.51.100.25"),
-			packet.WithProto(proto.TCP),
-			packet.WithSrcPort(54001),
-			packet.WithDstPort(8443),
-			packet.WithPayload([]byte("GET /v1/data HTTP/1.1")),
-		),
+	blocked := packet.New(
+		packet.WithName("blocked-api-request"),
+		packet.WithSrcAddr("192.0.2.11"),
+		packet.WithDstAddr("198.51.100.25"),
+		packet.WithProto(proto.TCP),
+		packet.WithSrcPort(54001),
+		packet.WithDstPort(8443),
+		packet.WithPayload([]byte("GET /v1/data HTTP/1.1")),
 	)
 
 	allowedResult, err := engine.Evaluate(allowed)
