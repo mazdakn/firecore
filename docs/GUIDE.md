@@ -60,6 +60,7 @@ func NewTable(name string, order uint64, defaultAction rule.Action) (*Table, err
 func (t *Table) AddChain(c *Chain)
 func (t *Table) SetEntryChain(name string)
 func (t *Table) EntryChain() string
+func (t *Table) Validate() error
 func (t *Table) Match(ctx *eval.Context, result *eval.Result) (bool, error)
 func (t *Table) MatchDefaultRule(result *eval.Result) bool
 
@@ -67,7 +68,8 @@ func SortTables(tables []*Table)
 ```
 
 - `NewTable(name, order, defaultAction)` creates a table whose default rule has the given action and is auto-named `"table <name> default action"`. `order` determines this table's position relative to other tables registered on the same engine.
-- `AddChain` adds a chain to the table. **The first chain added becomes the entry chain** unless you call `SetEntryChain` explicitly.
+- `AddChain` adds a chain to the table. **The first chain added becomes the entry chain** unless you call `SetEntryChain` explicitly. Chains may reference each other via `rule.WithJump("chainName")` regardless of add order — a chain's jump targets don't need to exist yet at the time it's added.
+- `Validate` checks that every `Jump` rule across all of the table's chains targets a chain that actually exists, returning an error naming the offending chain and rule if not. Call it once all chains have been added (e.g. right before handing the table to the engine) to catch a dangling jump target at build time instead of only when a packet happens to reach that rule during `Match`/`Evaluate`. It does not detect jump cycles.
 - `Match` evaluates the entry chain. If nothing in it produces a terminal verdict or a `Pass`, the table's default rule runs via `MatchDefaultRule`.
 - `Table.DefaultRule` is a public field — you can inspect its `PacketCount()` or swap/clear it (setting it to `nil` disables the fallthrough entirely; `Match` then reports no match with no verdict).
 

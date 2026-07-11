@@ -55,6 +55,33 @@ func (t *Table) EntryChain() string {
 	return t.entryChain
 }
 
+// Validate checks that every Jump rule in every chain of the table targets a
+// chain that exists in the table. Call it once all chains have been added —
+// chains may reference each other regardless of add order (see AddChain), so
+// this cannot be checked incrementally as rules or chains are added. Without
+// calling Validate, a dangling jump target is only discovered when a packet
+// actually reaches that rule during Match/Evaluate. Validate does not detect
+// jump cycles.
+func (t *Table) Validate() error {
+	names := make([]string, 0, len(t.Chains))
+	for name := range t.Chains {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		for _, r := range t.Chains[name].Rules {
+			if r.Action != rule.Jump {
+				continue
+			}
+			if _, ok := t.Chains[r.JumpTarget]; !ok {
+				return fmt.Errorf("chain %q: rule %q jumps to undefined chain %q", name, r, r.JumpTarget)
+			}
+		}
+	}
+	return nil
+}
+
 func (t *Table) Match(ctx *eval.Context, result *eval.Result) (bool, error) {
 	if ctx == nil {
 		return false, fmt.Errorf("nil context")

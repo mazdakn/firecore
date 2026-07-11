@@ -345,3 +345,49 @@ func TestTableMatchReturnsErrorForMissingJumpTarget(t *testing.T) {
 	Expect(result.Trace).To(HaveLen(1))
 	Expect(result.Trace[0].Name).To(Equal("jump-missing"))
 }
+
+func TestTableValidateReturnsErrorForMissingJumpTarget(t *testing.T) {
+	RegisterTestingT(t)
+
+	tbl := newTable("test", 0, rule.Drop)
+
+	mainChain := NewChain("main")
+	mainChain.AddRule(newRule(
+		rule.WithName("jump-missing"),
+		rule.WithJump("missing"),
+	))
+	tbl.AddChain(mainChain)
+
+	Expect(tbl.Validate()).To(MatchError(`chain "main": rule "jump-missing" jumps to undefined chain "missing"`))
+}
+
+func TestTableValidateAllowsForwardReferencedChains(t *testing.T) {
+	RegisterTestingT(t)
+
+	tbl := newTable("test", 0, rule.Drop)
+
+	// mainChain jumps to "helper" before helperChain has been created or
+	// added to the table — this forward reference must remain valid.
+	mainChain := NewChain("main")
+	mainChain.AddRule(newRule(rule.WithName("jump-to-helper"), rule.WithJump("helper")))
+	tbl.AddChain(mainChain)
+
+	Expect(tbl.Validate()).To(MatchError(`chain "main": rule "jump-to-helper" jumps to undefined chain "helper"`))
+
+	helperChain := NewChain("helper")
+	helperChain.AddRule(newRule(rule.WithName("accept-all"), rule.WithAction(rule.Accept)))
+	tbl.AddChain(helperChain)
+
+	Expect(tbl.Validate()).NotTo(HaveOccurred())
+}
+
+func TestTableValidateReturnsNilForNoJumpRules(t *testing.T) {
+	RegisterTestingT(t)
+
+	tbl := newTable("test", 0, rule.Drop)
+	mainChain := NewChain("main")
+	mainChain.AddRule(newRule(rule.WithName("accept-all"), rule.WithAction(rule.Accept)))
+	tbl.AddChain(mainChain)
+
+	Expect(tbl.Validate()).NotTo(HaveOccurred())
+}
