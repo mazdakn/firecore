@@ -22,21 +22,20 @@ import (
 	firecore "github.com/mazdakn/firecore"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/proto"
-	"github.com/mazdakn/firecore/rule"
 )
 
 func main() {
 	// A table's default rule fires when nothing in its entry chain decides.
-	policy, err := firecore.NewTable("policy", 0, rule.Drop)
+	policy, err := firecore.NewTable("policy", 0, firecore.Drop)
 	if err != nil {
 		panic(err)
 	}
 
-	allowHTTP, err := rule.New(
-		rule.WithName("allow-http"),
-		rule.WithProto(proto.TCP),
-		rule.WithDstPort(80),
-		rule.WithAction(rule.Accept),
+	allowHTTP, err := firecore.NewRule(
+		firecore.WithName("allow-http"),
+		firecore.WithProto(proto.TCP),
+		firecore.WithDstPort(80),
+		firecore.WithAction(firecore.Accept),
 	)
 	if err != nil {
 		panic(err)
@@ -66,20 +65,17 @@ func main() {
 }
 ```
 
-See **[docs/GUIDE.md](docs/GUIDE.md)** for the complete reference: core concepts, every rule-matching option, jump/pass/return semantics, connection tracking, sets, payload matching, and worked examples.
-
 ## Packages
 
 | Package | Purpose |
 |---|---|
-| `firecore` (root) | `Engine`, `Table`, `Chain`, `Result` — builds and runs the evaluation pipeline |
-| `rule` | `Rule`, `Action`, and the `With*` functional options used to match packets |
+| `firecore` (root) | `Engine`, `Table`, `Chain`, `Result`, `Rule`, `Action`, and the `With*` functional options used to build tables and match packets |
 | `packet` | `Packet` — the metadata a rule matches against |
 | `proto` | IP protocol numbers/names (tcp, udp, icmp, ...) |
 | `port` | Port numbers, well-known names, and ranges |
 | `set` | Named, reusable sets of IPs, ports, IP:port pairs, interfaces, and protocols |
 | `conntrack` | Connection-state tracking (new vs. established) |
-| `counter` | Atomic packet counters used by `rule.Rule` |
+| `counter` | Atomic packet counters used by `Rule` |
 | `payload` | Regex-based payload matching |
 
 ## Testing
