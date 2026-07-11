@@ -6,7 +6,6 @@ import (
 	firecore "github.com/mazdakn/firecore"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/proto"
-	"github.com/mazdakn/firecore/rule"
 	. "github.com/onsi/gomega"
 )
 
@@ -16,17 +15,17 @@ func TestPayloadRegexPolicy(t *testing.T) {
 	accept := mustParseAction(t, "accept")
 	tcp := mustParseProto(t, "tcp")
 
-	policy, err := firecore.NewTable("payload-policy", 1, rule.Drop)
+	policy, err := firecore.NewTable("payload-policy", 1, firecore.Drop)
 	Expect(err).NotTo(HaveOccurred())
 
 	entry := firecore.NewChain("entry")
 
-	allowAPIKey, err := rule.New(
-		rule.WithName("allow-api-key"),
-		rule.WithProto(tcp),
-		rule.WithDstPort(8443),
-		rule.WithPayload(`(?i)api_key=[A-Za-z0-9_-]+`),
-		rule.WithAction(accept),
+	allowAPIKey, err := firecore.NewRule(
+		firecore.WithName("allow-api-key"),
+		firecore.WithProto(tcp),
+		firecore.WithDstPort(8443),
+		firecore.WithPayload(`(?i)api_key=[A-Za-z0-9_-]+`),
+		firecore.WithAction(accept),
 	)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -66,7 +65,7 @@ func TestPayloadRegexPolicy(t *testing.T) {
 	Expect(allowedResult.Trace).To(HaveLen(1))
 	Expect(allowedResult.Trace[0].Name).To(Equal("allow-api-key"))
 
-	expectMatchResult(blockedResult, rule.Drop, "table payload-policy default action")
+	expectMatchResult(blockedResult, firecore.Drop, "table payload-policy default action")
 	Expect(blockedResult.Trace).To(HaveLen(2))
 	Expect(blockedResult.Trace[1].Name).To(Equal("table payload-policy default action"))
 

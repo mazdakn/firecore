@@ -6,23 +6,22 @@ import (
 	"github.com/mazdakn/firecore/conntrack"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/proto"
-	"github.com/mazdakn/firecore/rule"
 	. "github.com/onsi/gomega"
 )
 
-func expectMatchResult(result *Result, expectedVerdict rule.Action, expectedRule string) {
+func expectMatchResult(result *Result, expectedVerdict Action, expectedRule string) {
 	Expect(result.Verdict).To(HaveValue(Equal(expectedVerdict)))
 	Expect(result.Trace).NotTo(BeEmpty())
 	Expect(result.Trace[len(result.Trace)-1].Name).To(Equal(expectedRule))
 }
 
-func newRule(opts ...rule.RuleOption) *rule.Rule {
-	r, err := rule.New(opts...)
+func newRule(opts ...RuleOption) *Rule {
+	r, err := NewRule(opts...)
 	Expect(err).NotTo(HaveOccurred())
 	return r
 }
 
-func newTable(name string, order uint64, defaultAction rule.Action) *Table {
+func newTable(name string, order uint64, defaultAction Action) *Table {
 	tbl, err := NewTable(name, order, defaultAction)
 	Expect(err).NotTo(HaveOccurred())
 	return tbl
@@ -49,8 +48,8 @@ func TestNewAppliesOptions(t *testing.T) {
 func TestAddTable(t *testing.T) {
 	RegisterTestingT(t)
 
-	first := newTable("first", 1, rule.Drop)
-	second := newTable("second", 2, rule.Drop)
+	first := newTable("first", 1, Drop)
+	second := newTable("second", 2, Drop)
 	engine := New()
 
 	engine.AddTable(first)
@@ -62,23 +61,23 @@ func TestAddTable(t *testing.T) {
 func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 	RegisterTestingT(t)
 
-	acceptTable := newTable("accept-table", 2, rule.Drop)
+	acceptTable := newTable("accept-table", 2, Drop)
 	acceptChain := NewChain("default")
 	acceptChain.AddRule(newRule(
-		rule.WithName("accept-http"),
-		rule.WithDstPort(80),
-		rule.WithProto(proto.TCP),
-		rule.WithAction(rule.Accept),
+		WithName("accept-http"),
+		WithDstPort(80),
+		WithProto(proto.TCP),
+		WithAction(Accept),
 	))
 	acceptTable.AddChain(acceptChain)
 
-	passTable := newTable("pass-table", 1, rule.Drop)
+	passTable := newTable("pass-table", 1, Drop)
 	passChain := NewChain("default")
 	passChain.AddRule(newRule(
-		rule.WithName("pass-http"),
-		rule.WithDstPort(80),
-		rule.WithProto(proto.TCP),
-		rule.WithAction(rule.Pass),
+		WithName("pass-http"),
+		WithDstPort(80),
+		WithProto(proto.TCP),
+		WithAction(Pass),
 	))
 	passTable.AddChain(passChain)
 
@@ -96,7 +95,7 @@ func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 
 	Expect(err).NotTo(HaveOccurred())
 	Expect(engine.Tables).To(Equal([]*Table{passTable, acceptTable}))
-	Expect(result.Verdict).To(HaveValue(Equal(rule.Accept)))
+	Expect(result.Verdict).To(HaveValue(Equal(Accept)))
 	Expect(result.Trace).To(HaveLen(2))
 	Expect(result.Trace[0].Name).To(Equal("pass-http"))
 	Expect(result.Trace[1].Name).To(Equal("accept-http"))
@@ -105,23 +104,23 @@ func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 func TestEvaluatePassesToNextTable(t *testing.T) {
 	RegisterTestingT(t)
 
-	passTable := newTable("pass-table", 1, rule.Drop)
+	passTable := newTable("pass-table", 1, Drop)
 	passChain := NewChain("default")
 	passChain.AddRule(newRule(
-		rule.WithName("pass-http"),
-		rule.WithDstPort(80),
-		rule.WithProto(proto.TCP),
-		rule.WithAction(rule.Pass),
+		WithName("pass-http"),
+		WithDstPort(80),
+		WithProto(proto.TCP),
+		WithAction(Pass),
 	))
 	passTable.AddChain(passChain)
 
-	acceptTable := newTable("accept-table", 2, rule.Drop)
+	acceptTable := newTable("accept-table", 2, Drop)
 	acceptChain := NewChain("default")
 	acceptChain.AddRule(newRule(
-		rule.WithName("accept-http"),
-		rule.WithDstPort(80),
-		rule.WithProto(proto.TCP),
-		rule.WithAction(rule.Accept),
+		WithName("accept-http"),
+		WithDstPort(80),
+		WithProto(proto.TCP),
+		WithAction(Accept),
 	))
 	acceptTable.AddChain(acceptChain)
 
@@ -138,7 +137,7 @@ func TestEvaluatePassesToNextTable(t *testing.T) {
 	))
 
 	Expect(err).NotTo(HaveOccurred())
-	Expect(result.Verdict).To(HaveValue(Equal(rule.Accept)))
+	Expect(result.Verdict).To(HaveValue(Equal(Accept)))
 	Expect(result.Trace).To(HaveLen(2))
 	Expect(result.Trace[0].Name).To(Equal("pass-http"))
 	Expect(result.Trace[1].Name).To(Equal("accept-http"))
@@ -147,20 +146,20 @@ func TestEvaluatePassesToNextTable(t *testing.T) {
 func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 	RegisterTestingT(t)
 
-	stateful := newTable("stateful", 1, rule.Drop)
+	stateful := newTable("stateful", 1, Drop)
 	defaultChain := NewChain("default")
 	defaultChain.AddRule(newRule(
-		rule.WithName("allow-new-http"),
-		rule.WithConnState(conntrack.StateNew),
-		rule.WithDstPort(80),
-		rule.WithProto(proto.TCP),
-		rule.WithAction(rule.Accept),
+		WithName("allow-new-http"),
+		WithConnState(conntrack.StateNew),
+		WithDstPort(80),
+		WithProto(proto.TCP),
+		WithAction(Accept),
 	))
 	defaultChain.AddRule(newRule(
-		rule.WithName("allow-established"),
-		rule.WithConnState(conntrack.StateEstablished),
-		rule.WithProto(proto.TCP),
-		rule.WithAction(rule.Accept),
+		WithName("allow-established"),
+		WithConnState(conntrack.StateEstablished),
+		WithProto(proto.TCP),
+		WithAction(Accept),
 	))
 	stateful.AddChain(defaultChain)
 
@@ -190,28 +189,28 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 
 	Expect(err).NotTo(HaveOccurred())
 	Expect(requestResult.ConnState).To(HaveValue(Equal(conntrack.StateNew)))
-	expectMatchResult(requestResult, rule.Accept, "allow-new-http")
+	expectMatchResult(requestResult, Accept, "allow-new-http")
 	Expect(replyResult.ConnState).To(HaveValue(Equal(conntrack.StateEstablished)))
-	expectMatchResult(replyResult, rule.Accept, "allow-established")
+	expectMatchResult(replyResult, Accept, "allow-established")
 }
 
 func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 	RegisterTestingT(t)
 
-	stateful := newTable("stateful", 1, rule.Drop)
+	stateful := newTable("stateful", 1, Drop)
 	defaultChain := NewChain("default")
 	defaultChain.AddRule(newRule(
-		rule.WithName("allow-new-http"),
-		rule.WithConnState(conntrack.StateNew),
-		rule.WithDstPort(80),
-		rule.WithProto(proto.TCP),
-		rule.WithAction(rule.Accept),
+		WithName("allow-new-http"),
+		WithConnState(conntrack.StateNew),
+		WithDstPort(80),
+		WithProto(proto.TCP),
+		WithAction(Accept),
 	))
 	defaultChain.AddRule(newRule(
-		rule.WithName("allow-established"),
-		rule.WithConnState(conntrack.StateEstablished),
-		rule.WithProto(proto.TCP),
-		rule.WithAction(rule.Accept),
+		WithName("allow-established"),
+		WithConnState(conntrack.StateEstablished),
+		WithProto(proto.TCP),
+		WithAction(Accept),
 	))
 	stateful.AddChain(defaultChain)
 
@@ -241,31 +240,31 @@ func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 
 	Expect(err).NotTo(HaveOccurred())
 	Expect(requestResult.ConnState).To(BeNil())
-	expectMatchResult(requestResult, rule.Accept, "allow-new-http")
+	expectMatchResult(requestResult, Accept, "allow-new-http")
 	Expect(replyResult.ConnState).To(BeNil())
-	expectMatchResult(replyResult, rule.Drop, "table stateful default action")
+	expectMatchResult(replyResult, Drop, "table stateful default action")
 }
 
 func TestEvaluateSupportsJumpChains(t *testing.T) {
 	RegisterTestingT(t)
 
-	tbl := newTable("main", 1, rule.Drop)
+	tbl := newTable("main", 1, Drop)
 	entry := NewChain("entry")
 	entry.AddRule(newRule(
-		rule.WithName("jump-admin"),
-		rule.WithSrcNet("10.0.0.0/8"),
-		rule.WithJump("admin"),
+		WithName("jump-admin"),
+		WithSrcNet("10.0.0.0/8"),
+		WithJump("admin"),
 	))
 	entry.AddRule(newRule(
-		rule.WithName("deny-all"),
-		rule.WithAction(rule.Drop),
+		WithName("deny-all"),
+		WithAction(Drop),
 	))
 	admin := NewChain("admin")
 	admin.AddRule(newRule(
-		rule.WithName("allow-admin-http"),
-		rule.WithDstPort(80),
-		rule.WithProto(proto.TCP),
-		rule.WithAction(rule.Accept),
+		WithName("allow-admin-http"),
+		WithDstPort(80),
+		WithProto(proto.TCP),
+		WithAction(Accept),
 	))
 	tbl.AddChain(entry)
 	tbl.AddChain(admin)
@@ -283,7 +282,7 @@ func TestEvaluateSupportsJumpChains(t *testing.T) {
 	))
 
 	Expect(err).NotTo(HaveOccurred())
-	Expect(result.Verdict).To(HaveValue(Equal(rule.Accept)))
+	Expect(result.Verdict).To(HaveValue(Equal(Accept)))
 	Expect(result.Trace).To(HaveLen(2))
 	Expect(result.Trace[0].Name).To(Equal("jump-admin"))
 	Expect(result.Trace[1].Name).To(Equal("allow-admin-http"))
@@ -292,11 +291,11 @@ func TestEvaluateSupportsJumpChains(t *testing.T) {
 func TestEvaluateReturnsErrorForMissingJumpTarget(t *testing.T) {
 	RegisterTestingT(t)
 
-	tbl := newTable("main", 1, rule.Drop)
+	tbl := newTable("main", 1, Drop)
 	entry := NewChain("entry")
 	entry.AddRule(newRule(
-		rule.WithName("jump-missing"),
-		rule.WithJump("missing"),
+		WithName("jump-missing"),
+		WithJump("missing"),
 	))
 	tbl.AddChain(entry)
 	tbl.SetEntryChain("entry")

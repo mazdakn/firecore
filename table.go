@@ -7,7 +7,6 @@ import (
 
 	"github.com/mazdakn/firecore/conntrack"
 	"github.com/mazdakn/firecore/packet"
-	"github.com/mazdakn/firecore/rule"
 )
 
 // Table holds chains of firewall rules. Rules are accessed only via chains;
@@ -17,13 +16,13 @@ type Table struct {
 	Order       uint64
 	Chains      map[string]*Chain
 	entryChain  string
-	DefaultRule *rule.Rule
+	DefaultRule *Rule
 }
 
-func NewTable(name string, order uint64, defaultAction rule.Action) (*Table, error) {
-	defaultRule, err := rule.New(
-		rule.WithAction(defaultAction),
-		rule.WithName(fmt.Sprintf("table %s default action", name)),
+func NewTable(name string, order uint64, defaultAction Action) (*Table, error) {
+	defaultRule, err := NewRule(
+		WithAction(defaultAction),
+		WithName(fmt.Sprintf("table %s default action", name)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create default rule: %w", err)
@@ -92,7 +91,7 @@ func (t *Table) Validate() error {
 		color[name] = chainGray
 		path = append(path, name)
 		for _, r := range t.Chains[name].Rules {
-			if r.Action != rule.Jump {
+			if r.Action != Jump {
 				continue
 			}
 			target := r.JumpTarget
@@ -190,7 +189,7 @@ const MaxJumpDepth = 64
 // Chain holds an ordered slice of rules that are evaluated sequentially.
 type Chain struct {
 	Name  string
-	Rules []*rule.Rule
+	Rules []*Rule
 }
 
 // NewChain creates a new, empty chain with the given name.
@@ -199,7 +198,7 @@ func NewChain(name string) *Chain {
 }
 
 // AddRule inserts r into the chain, maintaining ascending order by Rule.Order.
-func (c *Chain) AddRule(r *rule.Rule) {
+func (c *Chain) AddRule(r *Rule) {
 	i := sort.Search(len(c.Rules), func(i int) bool {
 		return c.Rules[i].Order > r.Order
 	})
@@ -231,15 +230,15 @@ func (c *Chain) match(pkt *packet.Packet, result *Result, chains map[string]*Cha
 		result.Trace = append(result.Trace, r)
 		if r.MatchWithConntrackState(pkt, state) {
 			switch r.Action {
-			case rule.Accept, rule.Drop:
+			case Accept, Drop:
 				result.Verdict = &r.Action
 				return chainDecided, nil
-			case rule.Pass:
+			case Pass:
 				result.Verdict = &r.Action
 				return chainPass, nil
-			case rule.Return:
+			case Return:
 				return chainContinue, nil
-			case rule.Jump:
+			case Jump:
 				target, ok := chains[r.JumpTarget]
 				if !ok {
 					return chainContinue, fmt.Errorf("chain %q not found", r.JumpTarget)

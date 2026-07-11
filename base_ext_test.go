@@ -8,21 +8,20 @@ import (
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/port"
 	"github.com/mazdakn/firecore/proto"
-	"github.com/mazdakn/firecore/rule"
 	"github.com/mazdakn/firecore/set"
 	. "github.com/onsi/gomega"
 )
 
-func expectMatchResult(result *firecore.Result, expectedVerdict rule.Action, expectedRule string) {
+func expectMatchResult(result *firecore.Result, expectedVerdict firecore.Action, expectedRule string) {
 	Expect(result.Verdict).To(HaveValue(Equal(expectedVerdict)))
 	Expect(result.Trace).NotTo(BeEmpty())
 	Expect(result.Trace[len(result.Trace)-1].Name).To(Equal(expectedRule))
 }
 
-func mustParseAction(t *testing.T, raw string) rule.Action {
+func mustParseAction(t *testing.T, raw string) firecore.Action {
 	t.Helper()
 
-	action, err := rule.ParseAction(raw)
+	action, err := firecore.ParseAction(raw)
 	if err != nil {
 		t.Fatalf("parse action %q: %v", raw, err)
 	}
@@ -89,42 +88,42 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	dnsTargets := set.NewIPPortSet()
 	mustAddToSet(t, dnsTargets, "8.8.8.8,53")
 
-	t1, err := firecore.NewTable("policy", 10, rule.Drop)
+	t1, err := firecore.NewTable("policy", 10, firecore.Drop)
 	Expect(err).NotTo(HaveOccurred())
 
 	entry := firecore.NewChain("entry")
 	admin := firecore.NewChain("admin")
 
-	allowEstablished, err := rule.New(
-		rule.WithName("allow-established"),
-		rule.WithConnState(stateEstablished),
-		rule.WithProto(tcp),
-		rule.WithAction(accept),
+	allowEstablished, err := firecore.NewRule(
+		firecore.WithName("allow-established"),
+		firecore.WithConnState(stateEstablished),
+		firecore.WithProto(tcp),
+		firecore.WithAction(accept),
 	)
 	Expect(err).NotTo(HaveOccurred())
 
-	jumpAdmin, err := rule.New(
-		rule.WithName("jump-admin"),
-		rule.WithSrcIPSet(adminSources),
-		rule.WithSrcIfaceSet(mgmtIfaces),
-		rule.WithProto(tcp),
-		rule.WithJump("admin"),
+	jumpAdmin, err := firecore.NewRule(
+		firecore.WithName("jump-admin"),
+		firecore.WithSrcIPSet(adminSources),
+		firecore.WithSrcIfaceSet(mgmtIfaces),
+		firecore.WithProto(tcp),
+		firecore.WithJump("admin"),
 	)
 	Expect(err).NotTo(HaveOccurred())
 
-	allowDNS, err := rule.New(
-		rule.WithName("allow-public-dns"),
-		rule.WithDstIPPortSet(dnsTargets),
-		rule.WithProto(udp),
-		rule.WithAction(accept),
+	allowDNS, err := firecore.NewRule(
+		firecore.WithName("allow-public-dns"),
+		firecore.WithDstIPPortSet(dnsTargets),
+		firecore.WithProto(udp),
+		firecore.WithAction(accept),
 	)
 	Expect(err).NotTo(HaveOccurred())
 
-	allowAdminWeb, err := rule.New(
-		rule.WithName("allow-admin-web"),
-		rule.WithDstPortSet(webPorts),
-		rule.WithProto(tcp),
-		rule.WithAction(accept),
+	allowAdminWeb, err := firecore.NewRule(
+		firecore.WithName("allow-admin-web"),
+		firecore.WithDstPortSet(webPorts),
+		firecore.WithProto(tcp),
+		firecore.WithAction(accept),
 	)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -202,7 +201,7 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	Expect(dnsQueryResult.Trace).To(HaveLen(3))
 	Expect(dnsQueryResult.Trace[2].Name).To(Equal("allow-public-dns"))
 
-	expectMatchResult(outsiderResult, rule.Drop, "table policy default action")
+	expectMatchResult(outsiderResult, firecore.Drop, "table policy default action")
 	Expect(outsiderResult.Trace).To(HaveLen(4))
 	Expect(outsiderResult.Trace[3].Name).To(Equal("table policy default action"))
 
@@ -224,30 +223,30 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 	trustedSources := set.NewIPSet()
 	mustAddToSet(t, trustedSources, "192.0.2.0/24")
 
-	classify, err := firecore.NewTable("classify", 1, rule.Drop)
+	classify, err := firecore.NewTable("classify", 1, firecore.Drop)
 	Expect(err).NotTo(HaveOccurred())
 
 	classifyEntry := firecore.NewChain("entry")
 	classifyReview := firecore.NewChain("review")
 
-	jumpReview, err := rule.New(
-		rule.WithName("jump-review"),
-		rule.WithJump("review"),
+	jumpReview, err := firecore.NewRule(
+		firecore.WithName("jump-review"),
+		firecore.WithJump("review"),
 	)
 	Expect(err).NotTo(HaveOccurred())
 
-	returnToEntry, err := rule.New(
-		rule.WithName("return-to-entry"),
-		rule.WithAction(rule.Return),
+	returnToEntry, err := firecore.NewRule(
+		firecore.WithName("return-to-entry"),
+		firecore.WithAction(firecore.Return),
 	)
 	Expect(err).NotTo(HaveOccurred())
 
-	passTrusted, err := rule.New(
-		rule.WithName("pass-trusted-app"),
-		rule.WithSrcIPSet(trustedSources),
-		rule.WithDstPort(appPort.Resolve()),
-		rule.WithProto(tcp),
-		rule.WithAction(pass),
+	passTrusted, err := firecore.NewRule(
+		firecore.WithName("pass-trusted-app"),
+		firecore.WithSrcIPSet(trustedSources),
+		firecore.WithDstPort(appPort.Resolve()),
+		firecore.WithProto(tcp),
+		firecore.WithAction(pass),
 	)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -258,18 +257,18 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 	classify.AddChain(classifyReview)
 	classify.SetEntryChain("entry")
 
-	policy, err := firecore.NewTable("policy", 2, rule.Drop)
+	policy, err := firecore.NewTable("policy", 2, firecore.Drop)
 	Expect(err).NotTo(HaveOccurred())
 
 	policyEntry := firecore.NewChain("entry")
 	Expect(err).NotTo(HaveOccurred())
 
-	allowTrustedApp, err := rule.New(
-		rule.WithName("allow-trusted-app"),
-		rule.WithSrcIPSet(trustedSources),
-		rule.WithDstPort(appPort.Resolve()),
-		rule.WithProto(tcp),
-		rule.WithAction(accept),
+	allowTrustedApp, err := firecore.NewRule(
+		firecore.WithName("allow-trusted-app"),
+		firecore.WithSrcIPSet(trustedSources),
+		firecore.WithDstPort(appPort.Resolve()),
+		firecore.WithProto(tcp),
+		firecore.WithAction(accept),
 	)
 	Expect(err).NotTo(HaveOccurred())
 

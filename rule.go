@@ -1,4 +1,4 @@
-package rule
+package firecore
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/mazdakn/firecore/conntrack"
 	"github.com/mazdakn/firecore/counter"
+	"github.com/mazdakn/firecore/matcher"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/payload"
 	"github.com/mazdakn/firecore/proto"
@@ -80,7 +81,7 @@ type RuleOption func(*Rule) error
 // findMatcher returns the first matcher in r.Matchers of concrete type M,
 // so RuleOptions that extend an existing condition (e.g. repeated
 // WithSrcPort calls) can reuse it instead of adding a redundant Matcher.
-func findMatcher[M Matcher](r *Rule) (M, bool) {
+func findMatcher[M matcher.Matcher](r *Rule) (M, bool) {
 	for _, m := range r.Matchers {
 		if match, ok := m.(M); ok {
 			return match, true
@@ -113,9 +114,9 @@ func WithAction(action Action) RuleOption {
 
 func WithConnState(state conntrack.State) RuleOption {
 	return func(r *Rule) error {
-		m, ok := findMatcher[*ConnStateMatcher](r)
+		m, ok := findMatcher[*matcher.ConnStateMatcher](r)
 		if !ok {
-			m = &ConnStateMatcher{}
+			m = &matcher.ConnStateMatcher{}
 			r.Matchers = append(r.Matchers, m)
 		}
 		m.States = append(m.States, state)
@@ -125,9 +126,9 @@ func WithConnState(state conntrack.State) RuleOption {
 
 func WithNotConnState(state conntrack.State) RuleOption {
 	return func(r *Rule) error {
-		m, ok := findMatcher[*NotConnStateMatcher](r)
+		m, ok := findMatcher[*matcher.NotConnStateMatcher](r)
 		if !ok {
-			m = &NotConnStateMatcher{}
+			m = &matcher.NotConnStateMatcher{}
 			r.Matchers = append(r.Matchers, m)
 		}
 		m.States = append(m.States, state)
@@ -148,9 +149,9 @@ func WithPayload(pattern string) RuleOption {
 		if err != nil {
 			return fmt.Errorf("invalid payload regex %q: %w", pattern, err)
 		}
-		m, ok := findMatcher[*PayloadMatcher](r)
+		m, ok := findMatcher[*matcher.PayloadMatcher](r)
 		if !ok {
-			m = &PayloadMatcher{}
+			m = &matcher.PayloadMatcher{}
 			r.Matchers = append(r.Matchers, m)
 		}
 		m.Payload = pm
@@ -169,9 +170,9 @@ func WithOrder(order uint64) RuleOption {
 
 func WithProto(p proto.Proto) RuleOption {
 	return func(r *Rule) error {
-		m, ok := findMatcher[*ProtoMatcher](r)
+		m, ok := findMatcher[*matcher.ProtoMatcher](r)
 		if !ok {
-			m = &ProtoMatcher{Protos: set.NewProtoSet()}
+			m = &matcher.ProtoMatcher{Protos: set.NewProtoSet()}
 			r.Matchers = append(r.Matchers, m)
 		}
 		if err := m.Protos.Add(p); err != nil {
@@ -183,9 +184,9 @@ func WithProto(p proto.Proto) RuleOption {
 
 func WithNotProto(p proto.Proto) RuleOption {
 	return func(r *Rule) error {
-		m, ok := findMatcher[*NotProtoMatcher](r)
+		m, ok := findMatcher[*matcher.NotProtoMatcher](r)
 		if !ok {
-			m = &NotProtoMatcher{Protos: set.NewProtoSet()}
+			m = &matcher.NotProtoMatcher{Protos: set.NewProtoSet()}
 			r.Matchers = append(r.Matchers, m)
 		}
 		if err := m.Protos.Add(p); err != nil {
@@ -199,9 +200,9 @@ func WithNotProto(p proto.Proto) RuleOption {
 
 func WithSrcPort(port uint16) RuleOption {
 	return func(r *Rule) error {
-		m, ok := findMatcher[*SrcPortMatcher](r)
+		m, ok := findMatcher[*matcher.SrcPortMatcher](r)
 		if !ok {
-			m = &SrcPortMatcher{Ports: set.NewPortSet()}
+			m = &matcher.SrcPortMatcher{Ports: set.NewPortSet()}
 			r.Matchers = append(r.Matchers, m)
 		}
 		if err := m.Ports.Add(port); err != nil {
@@ -213,9 +214,9 @@ func WithSrcPort(port uint16) RuleOption {
 
 func WithNotSrcPort(port uint16) RuleOption {
 	return func(r *Rule) error {
-		m, ok := findMatcher[*NotSrcPortMatcher](r)
+		m, ok := findMatcher[*matcher.NotSrcPortMatcher](r)
 		if !ok {
-			m = &NotSrcPortMatcher{Ports: set.NewPortSet()}
+			m = &matcher.NotSrcPortMatcher{Ports: set.NewPortSet()}
 			r.Matchers = append(r.Matchers, m)
 		}
 		if err := m.Ports.Add(port); err != nil {
@@ -227,28 +228,28 @@ func WithNotSrcPort(port uint16) RuleOption {
 
 func WithSrcPortSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &SrcSetMatcher{Set: s})
+		r.Matchers = append(r.Matchers, &matcher.SrcSetMatcher{Set: s})
 		return nil
 	}
 }
 
 func WithNotSrcPortSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &NotSrcSetMatcher{Set: s})
+		r.Matchers = append(r.Matchers, &matcher.NotSrcSetMatcher{Set: s})
 		return nil
 	}
 }
 
 func WithSrcIPPortSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &SrcSetMatcher{Set: s})
+		r.Matchers = append(r.Matchers, &matcher.SrcSetMatcher{Set: s})
 		return nil
 	}
 }
 
 func WithNotSrcIPPortSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &NotSrcSetMatcher{Set: s})
+		r.Matchers = append(r.Matchers, &matcher.NotSrcSetMatcher{Set: s})
 		return nil
 	}
 }
@@ -257,9 +258,9 @@ func WithNotSrcIPPortSet(s set.Set) RuleOption {
 
 func WithDstPort(port uint16) RuleOption {
 	return func(r *Rule) error {
-		m, ok := findMatcher[*DstPortMatcher](r)
+		m, ok := findMatcher[*matcher.DstPortMatcher](r)
 		if !ok {
-			m = &DstPortMatcher{Ports: set.NewPortSet()}
+			m = &matcher.DstPortMatcher{Ports: set.NewPortSet()}
 			r.Matchers = append(r.Matchers, m)
 		}
 		if err := m.Ports.Add(port); err != nil {
@@ -271,9 +272,9 @@ func WithDstPort(port uint16) RuleOption {
 
 func WithNotDstPort(port uint16) RuleOption {
 	return func(r *Rule) error {
-		m, ok := findMatcher[*NotDstPortMatcher](r)
+		m, ok := findMatcher[*matcher.NotDstPortMatcher](r)
 		if !ok {
-			m = &NotDstPortMatcher{Ports: set.NewPortSet()}
+			m = &matcher.NotDstPortMatcher{Ports: set.NewPortSet()}
 			r.Matchers = append(r.Matchers, m)
 		}
 		if err := m.Ports.Add(port); err != nil {
@@ -285,28 +286,28 @@ func WithNotDstPort(port uint16) RuleOption {
 
 func WithDstPortSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &DstSetMatcher{Set: s})
+		r.Matchers = append(r.Matchers, &matcher.DstSetMatcher{Set: s})
 		return nil
 	}
 }
 
 func WithNotDstPortSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &NotDstSetMatcher{Set: s})
+		r.Matchers = append(r.Matchers, &matcher.NotDstSetMatcher{Set: s})
 		return nil
 	}
 }
 
 func WithDstIPPortSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &DstSetMatcher{Set: s})
+		r.Matchers = append(r.Matchers, &matcher.DstSetMatcher{Set: s})
 		return nil
 	}
 }
 
 func WithNotDstIPPortSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &NotDstSetMatcher{Set: s})
+		r.Matchers = append(r.Matchers, &matcher.NotDstSetMatcher{Set: s})
 		return nil
 	}
 }
@@ -319,9 +320,9 @@ func WithSrcNet(cidr string) RuleOption {
 		if err != nil {
 			return fmt.Errorf("CIDR %s is invalid", cidr)
 		}
-		m, ok := findMatcher[*SrcNetMatcher](r)
+		m, ok := findMatcher[*matcher.SrcNetMatcher](r)
 		if !ok {
-			m = &SrcNetMatcher{Nets: set.NewIPSet()}
+			m = &matcher.SrcNetMatcher{Nets: set.NewIPSet()}
 			r.Matchers = append(r.Matchers, m)
 		}
 		if err := m.Nets.Add(ipnet); err != nil {
@@ -337,9 +338,9 @@ func WithNotSrcNet(cidr string) RuleOption {
 		if err != nil {
 			return fmt.Errorf("CIDR %s is invalid", cidr)
 		}
-		m, ok := findMatcher[*NotSrcNetMatcher](r)
+		m, ok := findMatcher[*matcher.NotSrcNetMatcher](r)
 		if !ok {
-			m = &NotSrcNetMatcher{Nets: set.NewIPSet()}
+			m = &matcher.NotSrcNetMatcher{Nets: set.NewIPSet()}
 			r.Matchers = append(r.Matchers, m)
 		}
 		if err := m.Nets.Add(ipnet); err != nil {
@@ -351,14 +352,14 @@ func WithNotSrcNet(cidr string) RuleOption {
 
 func WithSrcIPSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &SrcSetMatcher{Set: s})
+		r.Matchers = append(r.Matchers, &matcher.SrcSetMatcher{Set: s})
 		return nil
 	}
 }
 
 func WithNotSrcIPSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &NotSrcSetMatcher{Set: s})
+		r.Matchers = append(r.Matchers, &matcher.NotSrcSetMatcher{Set: s})
 		return nil
 	}
 }
@@ -371,9 +372,9 @@ func WithDstNet(cidr string) RuleOption {
 		if err != nil {
 			return fmt.Errorf("CIDR %s is invalid", cidr)
 		}
-		m, ok := findMatcher[*DstNetMatcher](r)
+		m, ok := findMatcher[*matcher.DstNetMatcher](r)
 		if !ok {
-			m = &DstNetMatcher{Nets: set.NewIPSet()}
+			m = &matcher.DstNetMatcher{Nets: set.NewIPSet()}
 			r.Matchers = append(r.Matchers, m)
 		}
 		if err := m.Nets.Add(ipnet); err != nil {
@@ -389,9 +390,9 @@ func WithNotDstNet(cidr string) RuleOption {
 		if err != nil {
 			return fmt.Errorf("CIDR %s is invalid", cidr)
 		}
-		m, ok := findMatcher[*NotDstNetMatcher](r)
+		m, ok := findMatcher[*matcher.NotDstNetMatcher](r)
 		if !ok {
-			m = &NotDstNetMatcher{Nets: set.NewIPSet()}
+			m = &matcher.NotDstNetMatcher{Nets: set.NewIPSet()}
 			r.Matchers = append(r.Matchers, m)
 		}
 		if err := m.Nets.Add(ipnet); err != nil {
@@ -403,14 +404,14 @@ func WithNotDstNet(cidr string) RuleOption {
 
 func WithDstIPSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &DstSetMatcher{Set: s})
+		r.Matchers = append(r.Matchers, &matcher.DstSetMatcher{Set: s})
 		return nil
 	}
 }
 
 func WithNotDstIPSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &NotDstSetMatcher{Set: s})
+		r.Matchers = append(r.Matchers, &matcher.NotDstSetMatcher{Set: s})
 		return nil
 	}
 }
@@ -419,9 +420,9 @@ func WithNotDstIPSet(s set.Set) RuleOption {
 
 func WithSrcIface(iface string) RuleOption {
 	return func(r *Rule) error {
-		m, ok := findMatcher[*SrcIfaceMatcher](r)
+		m, ok := findMatcher[*matcher.SrcIfaceMatcher](r)
 		if !ok {
-			m = &SrcIfaceMatcher{Ifaces: set.NewIfaceSet()}
+			m = &matcher.SrcIfaceMatcher{Ifaces: set.NewIfaceSet()}
 			r.Matchers = append(r.Matchers, m)
 		}
 		if err := m.Ifaces.Add(iface); err != nil {
@@ -433,9 +434,9 @@ func WithSrcIface(iface string) RuleOption {
 
 func WithNotSrcIface(iface string) RuleOption {
 	return func(r *Rule) error {
-		m, ok := findMatcher[*NotSrcIfaceMatcher](r)
+		m, ok := findMatcher[*matcher.NotSrcIfaceMatcher](r)
 		if !ok {
-			m = &NotSrcIfaceMatcher{Ifaces: set.NewIfaceSet()}
+			m = &matcher.NotSrcIfaceMatcher{Ifaces: set.NewIfaceSet()}
 			r.Matchers = append(r.Matchers, m)
 		}
 		if err := m.Ifaces.Add(iface); err != nil {
@@ -449,9 +450,9 @@ func WithNotSrcIface(iface string) RuleOption {
 
 func WithDstIface(iface string) RuleOption {
 	return func(r *Rule) error {
-		m, ok := findMatcher[*DstIfaceMatcher](r)
+		m, ok := findMatcher[*matcher.DstIfaceMatcher](r)
 		if !ok {
-			m = &DstIfaceMatcher{Ifaces: set.NewIfaceSet()}
+			m = &matcher.DstIfaceMatcher{Ifaces: set.NewIfaceSet()}
 			r.Matchers = append(r.Matchers, m)
 		}
 		if err := m.Ifaces.Add(iface); err != nil {
@@ -463,9 +464,9 @@ func WithDstIface(iface string) RuleOption {
 
 func WithNotDstIface(iface string) RuleOption {
 	return func(r *Rule) error {
-		m, ok := findMatcher[*NotDstIfaceMatcher](r)
+		m, ok := findMatcher[*matcher.NotDstIfaceMatcher](r)
 		if !ok {
-			m = &NotDstIfaceMatcher{Ifaces: set.NewIfaceSet()}
+			m = &matcher.NotDstIfaceMatcher{Ifaces: set.NewIfaceSet()}
 			r.Matchers = append(r.Matchers, m)
 		}
 		if err := m.Ifaces.Add(iface); err != nil {
@@ -477,33 +478,33 @@ func WithNotDstIface(iface string) RuleOption {
 
 func WithSrcIfaceSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &SrcSetMatcher{Set: s})
+		r.Matchers = append(r.Matchers, &matcher.SrcSetMatcher{Set: s})
 		return nil
 	}
 }
 
 func WithNotSrcIfaceSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &NotSrcSetMatcher{Set: s})
+		r.Matchers = append(r.Matchers, &matcher.NotSrcSetMatcher{Set: s})
 		return nil
 	}
 }
 
 func WithDstIfaceSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &DstSetMatcher{Set: s})
+		r.Matchers = append(r.Matchers, &matcher.DstSetMatcher{Set: s})
 		return nil
 	}
 }
 
 func WithNotDstIfaceSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &NotDstSetMatcher{Set: s})
+		r.Matchers = append(r.Matchers, &matcher.NotDstSetMatcher{Set: s})
 		return nil
 	}
 }
 
-func New(opts ...RuleOption) (*Rule, error) {
+func NewRule(opts ...RuleOption) (*Rule, error) {
 	r := Rule{
 		packetCount: counter.New(),
 	}
@@ -521,7 +522,7 @@ type Rule struct {
 	Action     Action
 	JumpTarget string // name of the chain to jump to when Action == Jump
 
-	Matchers []Matcher
+	Matchers []matcher.Matcher
 
 	packetCount *counter.Counter
 }

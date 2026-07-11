@@ -1,4 +1,4 @@
-package rule
+package firecore
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/mazdakn/firecore/conntrack"
+	"github.com/mazdakn/firecore/matcher"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/proto"
 	"github.com/mazdakn/firecore/set"
@@ -13,7 +14,7 @@ import (
 )
 
 func mustNew(opts ...RuleOption) *Rule {
-	r, err := New(opts...)
+	r, err := NewRule(opts...)
 	Expect(err).NotTo(HaveOccurred())
 	return r
 }
@@ -186,7 +187,7 @@ func TestRulePayloadMatch(t *testing.T) {
 func TestNewReturnsErrorOnInvalidPayloadPattern(t *testing.T) {
 	RegisterTestingT(t)
 
-	_, err := New(WithPayload(`[`))
+	_, err := NewRule(WithPayload(`[`))
 	Expect(err).To(HaveOccurred())
 }
 
@@ -249,11 +250,11 @@ func TestNewReturnsErrorOnInvalidCIDR(t *testing.T) {
 
 	for _, cidr := range tests {
 		t.Run(fmt.Sprintf("should error on %s (src)", cidr), func(t *testing.T) {
-			_, err := New(WithSrcNet(cidr))
+			_, err := NewRule(WithSrcNet(cidr))
 			Expect(err).To(HaveOccurred())
 		})
 		t.Run(fmt.Sprintf("should error on %s (dst)", cidr), func(t *testing.T) {
-			_, err := New(WithDstNet(cidr))
+			_, err := NewRule(WithDstNet(cidr))
 			Expect(err).To(HaveOccurred())
 		})
 	}
@@ -470,26 +471,26 @@ func TestNegatedRuleConfig(t *testing.T) {
 		WithNotSrcNet("10.0.0.0/8"),
 		WithNotDstNet("192.168.0.0/16"),
 	)
-	_, ok := findMatcher[*NotProtoMatcher](rule)
+	_, ok := findMatcher[*matcher.NotProtoMatcher](rule)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*NotSrcPortMatcher](rule)
+	_, ok = findMatcher[*matcher.NotSrcPortMatcher](rule)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*NotDstPortMatcher](rule)
+	_, ok = findMatcher[*matcher.NotDstPortMatcher](rule)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*NotSrcNetMatcher](rule)
+	_, ok = findMatcher[*matcher.NotSrcNetMatcher](rule)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*NotDstNetMatcher](rule)
+	_, ok = findMatcher[*matcher.NotDstNetMatcher](rule)
 	Expect(ok).To(BeTrue())
 	// Positive matchers should be absent when only negated values are specified
-	_, ok = findMatcher[*ProtoMatcher](rule)
+	_, ok = findMatcher[*matcher.ProtoMatcher](rule)
 	Expect(ok).To(BeFalse())
-	_, ok = findMatcher[*SrcPortMatcher](rule)
+	_, ok = findMatcher[*matcher.SrcPortMatcher](rule)
 	Expect(ok).To(BeFalse())
-	_, ok = findMatcher[*DstPortMatcher](rule)
+	_, ok = findMatcher[*matcher.DstPortMatcher](rule)
 	Expect(ok).To(BeFalse())
-	_, ok = findMatcher[*SrcNetMatcher](rule)
+	_, ok = findMatcher[*matcher.SrcNetMatcher](rule)
 	Expect(ok).To(BeFalse())
-	_, ok = findMatcher[*DstNetMatcher](rule)
+	_, ok = findMatcher[*matcher.DstNetMatcher](rule)
 	Expect(ok).To(BeFalse())
 
 	// Positive and negated matchers can be combined on the same rule
@@ -506,25 +507,25 @@ func TestNegatedRuleConfig(t *testing.T) {
 		WithDstNet("1.1.1.0/24"),
 		WithNotDstNet("1.1.1.100/32"),
 	)
-	_, ok = findMatcher[*ProtoMatcher](ruleCombined)
+	_, ok = findMatcher[*matcher.ProtoMatcher](ruleCombined)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*NotProtoMatcher](ruleCombined)
+	_, ok = findMatcher[*matcher.NotProtoMatcher](ruleCombined)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*SrcPortMatcher](ruleCombined)
+	_, ok = findMatcher[*matcher.SrcPortMatcher](ruleCombined)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*NotSrcPortMatcher](ruleCombined)
+	_, ok = findMatcher[*matcher.NotSrcPortMatcher](ruleCombined)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*DstPortMatcher](ruleCombined)
+	_, ok = findMatcher[*matcher.DstPortMatcher](ruleCombined)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*NotDstPortMatcher](ruleCombined)
+	_, ok = findMatcher[*matcher.NotDstPortMatcher](ruleCombined)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*SrcNetMatcher](ruleCombined)
+	_, ok = findMatcher[*matcher.SrcNetMatcher](ruleCombined)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*NotSrcNetMatcher](ruleCombined)
+	_, ok = findMatcher[*matcher.NotSrcNetMatcher](ruleCombined)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*DstNetMatcher](ruleCombined)
+	_, ok = findMatcher[*matcher.DstNetMatcher](ruleCombined)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*NotDstNetMatcher](ruleCombined)
+	_, ok = findMatcher[*matcher.NotDstNetMatcher](ruleCombined)
 	Expect(ok).To(BeTrue())
 }
 

@@ -5,16 +5,15 @@ import (
 
 	"github.com/mazdakn/firecore/conntrack"
 	"github.com/mazdakn/firecore/packet"
-	"github.com/mazdakn/firecore/rule"
 )
 
 // Result is the outcome of evaluating a packet with Engine.Evaluate.
 type Result struct {
 	// Verdict is the final decision, or nil if no table decided.
-	Verdict *rule.Action
+	Verdict *Action
 	// Trace lists every rule inspected during evaluation, in the order
 	// evaluated, regardless of whether each one matched.
-	Trace []*rule.Rule
+	Trace []*Rule
 	// ConnState is the connection state the packet was classified as by
 	// the engine's conntrack tracker, or nil if conntrack is disabled.
 	ConnState *conntrack.State
@@ -74,7 +73,7 @@ func (e *Engine) Evaluate(pkt *packet.Packet) (*Result, error) {
 	if !decided {
 		result.Verdict = nil
 	}
-	if e.tracker != nil && result.Verdict != nil && *result.Verdict == rule.Accept {
+	if e.tracker != nil && result.Verdict != nil && *result.Verdict == Accept {
 		if err := e.tracker.CommitAccepted(pkt); err != nil {
 			return nil, fmt.Errorf("evaluate: %w", err)
 		}
