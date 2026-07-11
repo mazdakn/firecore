@@ -104,8 +104,8 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 
 	jumpAdmin, err := firecore.NewRule(
 		firecore.WithName("jump-admin"),
-		firecore.WithSrcIPSet(adminSources),
-		firecore.WithSrcIfaceSet(mgmtIfaces),
+		firecore.WithSrcSet(adminSources),
+		firecore.WithSrcSet(mgmtIfaces),
 		firecore.WithProto(tcp),
 		firecore.WithJump("admin"),
 	)
@@ -113,7 +113,7 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 
 	allowDNS, err := firecore.NewRule(
 		firecore.WithName("allow-public-dns"),
-		firecore.WithDstIPPortSet(dnsTargets),
+		firecore.WithDstSet(dnsTargets),
 		firecore.WithProto(udp),
 		firecore.WithAction(accept),
 	)
@@ -121,7 +121,7 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 
 	allowAdminWeb, err := firecore.NewRule(
 		firecore.WithName("allow-admin-web"),
-		firecore.WithDstPortSet(webPorts),
+		firecore.WithDstSet(webPorts),
 		firecore.WithProto(tcp),
 		firecore.WithAction(accept),
 	)
@@ -243,7 +243,7 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 
 	passTrusted, err := firecore.NewRule(
 		firecore.WithName("pass-trusted-app"),
-		firecore.WithSrcIPSet(trustedSources),
+		firecore.WithSrcSet(trustedSources),
 		firecore.WithDstPort(appPort.Resolve()),
 		firecore.WithProto(tcp),
 		firecore.WithAction(pass),
@@ -265,7 +265,7 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 
 	allowTrustedApp, err := firecore.NewRule(
 		firecore.WithName("allow-trusted-app"),
-		firecore.WithSrcIPSet(trustedSources),
+		firecore.WithSrcSet(trustedSources),
 		firecore.WithDstPort(appPort.Resolve()),
 		firecore.WithProto(tcp),
 		firecore.WithAction(accept),

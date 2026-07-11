@@ -226,28 +226,17 @@ func WithNotSrcPort(port uint16) RuleOption {
 	}
 }
 
-func WithSrcPortSet(s set.Set) RuleOption {
+// WithSrcSet matches packets whose source-derived value (address, port, or
+// interface, depending on s's Type) is in s.
+func WithSrcSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
 		r.Matchers = append(r.Matchers, &matcher.SrcSetMatcher{Set: s})
 		return nil
 	}
 }
 
-func WithNotSrcPortSet(s set.Set) RuleOption {
-	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &matcher.NotSrcSetMatcher{Set: s})
-		return nil
-	}
-}
-
-func WithSrcIPPortSet(s set.Set) RuleOption {
-	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &matcher.SrcSetMatcher{Set: s})
-		return nil
-	}
-}
-
-func WithNotSrcIPPortSet(s set.Set) RuleOption {
+// WithNotSrcSet matches packets whose source-derived value is not in s.
+func WithNotSrcSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
 		r.Matchers = append(r.Matchers, &matcher.NotSrcSetMatcher{Set: s})
 		return nil
@@ -284,28 +273,17 @@ func WithNotDstPort(port uint16) RuleOption {
 	}
 }
 
-func WithDstPortSet(s set.Set) RuleOption {
+// WithDstSet matches packets whose destination-derived value (address, port,
+// or interface, depending on s's Type) is in s.
+func WithDstSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
 		r.Matchers = append(r.Matchers, &matcher.DstSetMatcher{Set: s})
 		return nil
 	}
 }
 
-func WithNotDstPortSet(s set.Set) RuleOption {
-	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &matcher.NotDstSetMatcher{Set: s})
-		return nil
-	}
-}
-
-func WithDstIPPortSet(s set.Set) RuleOption {
-	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &matcher.DstSetMatcher{Set: s})
-		return nil
-	}
-}
-
-func WithNotDstIPPortSet(s set.Set) RuleOption {
+// WithNotDstSet matches packets whose destination-derived value is not in s.
+func WithNotDstSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
 		r.Matchers = append(r.Matchers, &matcher.NotDstSetMatcher{Set: s})
 		return nil
@@ -350,20 +328,6 @@ func WithNotSrcNet(cidr string) RuleOption {
 	}
 }
 
-func WithSrcIPSet(s set.Set) RuleOption {
-	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &matcher.SrcSetMatcher{Set: s})
-		return nil
-	}
-}
-
-func WithNotSrcIPSet(s set.Set) RuleOption {
-	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &matcher.NotSrcSetMatcher{Set: s})
-		return nil
-	}
-}
-
 // Destination address options.
 
 func WithDstNet(cidr string) RuleOption {
@@ -398,20 +362,6 @@ func WithNotDstNet(cidr string) RuleOption {
 		if err := m.Nets.Add(ipnet); err != nil {
 			return fmt.Errorf("error adding %s to set: %w", cidr, err)
 		}
-		return nil
-	}
-}
-
-func WithDstIPSet(s set.Set) RuleOption {
-	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &matcher.DstSetMatcher{Set: s})
-		return nil
-	}
-}
-
-func WithNotDstIPSet(s set.Set) RuleOption {
-	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &matcher.NotDstSetMatcher{Set: s})
 		return nil
 	}
 }
@@ -472,34 +422,6 @@ func WithNotDstIface(iface string) RuleOption {
 		if err := m.Ifaces.Add(iface); err != nil {
 			return fmt.Errorf("invalid interface %s", iface)
 		}
-		return nil
-	}
-}
-
-func WithSrcIfaceSet(s set.Set) RuleOption {
-	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &matcher.SrcSetMatcher{Set: s})
-		return nil
-	}
-}
-
-func WithNotSrcIfaceSet(s set.Set) RuleOption {
-	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &matcher.NotSrcSetMatcher{Set: s})
-		return nil
-	}
-}
-
-func WithDstIfaceSet(s set.Set) RuleOption {
-	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &matcher.DstSetMatcher{Set: s})
-		return nil
-	}
-}
-
-func WithNotDstIfaceSet(s set.Set) RuleOption {
-	return func(r *Rule) error {
-		r.Matchers = append(r.Matchers, &matcher.NotDstSetMatcher{Set: s})
 		return nil
 	}
 }
