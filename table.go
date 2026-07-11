@@ -97,12 +97,12 @@ func (t *Table) Validate() error {
 			}
 			target := r.JumpTarget
 			if _, ok := t.Chains[target]; !ok {
-				return fmt.Errorf("chain %q: rule %q jumps to undefined chain %q", name, r, target)
+				return fmt.Errorf("chain %q: rule %q jumps to undefined chain %q", name, r.Name, target)
 			}
 			switch color[target] {
 			case chainGray:
 				cycle := strings.Join(append(path, target), " -> ")
-				return fmt.Errorf("chain %q: rule %q creates a jump cycle: %s", name, r, cycle)
+				return fmt.Errorf("chain %q: rule %q creates a jump cycle: %s", name, r.Name, cycle)
 			case chainWhite:
 				if err := visit(target, path); err != nil {
 					return err

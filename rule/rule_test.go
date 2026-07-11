@@ -63,8 +63,8 @@ func TestRuleIPFamilyMismatch(t *testing.T) {
 		mustNew(WithSrcNet("10.10.10.0/24"), WithDstNet("1.1.1.1/32")),
 		mustNew(WithProto(proto.UDP), WithSrcNet("10.10.10.0/24"), WithDstNet("1.1.1.1/32")),
 	}
-	for _, r := range ipv4Rules {
-		t.Run(fmt.Sprintf("IPv4 rule %v should not match IPv6 packet", r.String()), func(t *testing.T) {
+	for i, r := range ipv4Rules {
+		t.Run(fmt.Sprintf("IPv4 rule %d should not match IPv6 packet", i), func(t *testing.T) {
 			Expect(r.Match(pktV6)).To(BeFalse())
 		})
 	}
@@ -82,8 +82,8 @@ func TestRuleIPFamilyMismatch(t *testing.T) {
 		mustNew(WithSrcNet("dead:beef::/64"), WithDstNet("cafe::/112")),
 		mustNew(WithProto(proto.TCP), WithSrcNet("dead:beef::/64"), WithDstNet("cafe::/112")),
 	}
-	for _, r := range ipv6Rules {
-		t.Run(fmt.Sprintf("IPv6 rule %v should not match IPv4 packet", r.String()), func(t *testing.T) {
+	for i, r := range ipv6Rules {
+		t.Run(fmt.Sprintf("IPv6 rule %d should not match IPv4 packet", i), func(t *testing.T) {
 			Expect(r.Match(pktV4)).To(BeFalse())
 		})
 	}
@@ -100,11 +100,11 @@ func TestRuleMatch(t *testing.T) {
 		packet.WithSrcAddr("172.16.0.1"), packet.WithSrcPort(50000), packet.WithProto(proto.Proto(8)),
 		packet.WithDstAddr("2.2.2.2"), packet.WithDstPort(9999),
 	)
-	for _, r := range makeCommonRules("10.10.10.0/24", "1.1.1.1/32", proto.UDP, 55555, 53) {
-		t.Run(fmt.Sprintf("should match %v", r.String()), func(t *testing.T) {
+	for i, r := range makeCommonRules("10.10.10.0/24", "1.1.1.1/32", proto.UDP, 55555, 53) {
+		t.Run(fmt.Sprintf("rule %d should match", i), func(t *testing.T) {
 			Expect(r.Match(pktShouldMatch)).To(BeTrue())
 		})
-		t.Run(fmt.Sprintf("should not match %v", r.String()), func(t *testing.T) {
+		t.Run(fmt.Sprintf("rule %d should not match", i), func(t *testing.T) {
 			Expect(r.Match(pktShouldNotMatch)).To(BeFalse())
 		})
 	}
@@ -121,11 +121,11 @@ func TestRuleMatchV6(t *testing.T) {
 		packet.WithSrcAddr("dead:cafe::1"), packet.WithSrcPort(30000), packet.WithProto(proto.Proto(64)),
 		packet.WithDstAddr("ffff::1"), packet.WithDstPort(8080),
 	)
-	for _, r := range makeCommonRules("dead:beef::/64", "cafe::/112", proto.TCP, 44444, 80) {
-		t.Run(fmt.Sprintf("should match %v", r.String()), func(t *testing.T) {
+	for i, r := range makeCommonRules("dead:beef::/64", "cafe::/112", proto.TCP, 44444, 80) {
+		t.Run(fmt.Sprintf("rule %d should match", i), func(t *testing.T) {
 			Expect(r.Match(pktShouldMatch)).To(BeTrue())
 		})
-		t.Run(fmt.Sprintf("should not match %v", r.String()), func(t *testing.T) {
+		t.Run(fmt.Sprintf("rule %d should not match", i), func(t *testing.T) {
 			Expect(r.Match(pktShouldNotMatch)).To(BeFalse())
 		})
 	}
@@ -171,17 +171,6 @@ func TestRuleNegatedConntrackStateMatch(t *testing.T) {
 	Expect(r.MatchWithConntrackState(pkt, conntrack.StateEstablished)).To(BeFalse())
 }
 
-func TestRuleMatchConditionsIncludeConntrackState(t *testing.T) {
-	RegisterTestingT(t)
-
-	r := mustNew(
-		WithConnState(conntrack.StateNew),
-		WithNotConnState(conntrack.StateEstablished),
-	)
-
-	Expect(r.MatchConditions()).To(ContainSubstring("ct_state=new,!established"))
-}
-
 func TestRulePayloadMatch(t *testing.T) {
 	RegisterTestingT(t)
 
@@ -192,14 +181,6 @@ func TestRulePayloadMatch(t *testing.T) {
 
 	Expect(r.Match(pktMatch)).To(BeTrue())
 	Expect(r.Match(pktNoMatch)).To(BeFalse())
-}
-
-func TestRulePayloadString(t *testing.T) {
-	RegisterTestingT(t)
-
-	r := mustNew(WithAction(Accept), WithPayload(`GET /admin`))
-
-	Expect(r.String()).To(Equal(`Accept *{*:*->*:*} payload~="GET /admin"`))
 }
 
 func TestNewReturnsErrorOnInvalidPayloadPattern(t *testing.T) {
@@ -418,18 +399,18 @@ func TestRulePacketCounterConcurrency(t *testing.T) {
 func TestRuleWithName(t *testing.T) {
 	RegisterTestingT(t)
 
-	// Rule without name should use the full rule representation
+	// Rule without name has an empty Name
 	ruleNoName := mustNew(WithAction(Accept), WithProto(proto.TCP), WithDstPort(80))
-	Expect(ruleNoName.String()).To(Equal("Accept tcp{*:*->*:80}"))
+	Expect(ruleNoName.Name).To(Equal(""))
 
-	// Rule with name should use the name for output
+	// Rule with name should keep it
 	ruleWithName := mustNew(WithAction(Accept), WithProto(proto.TCP), WithDstPort(80), WithName("allow-http"))
-	Expect(ruleWithName.String()).To(Equal("allow-http"))
+	Expect(ruleWithName.Name).To(Equal("allow-http"))
 
 	// Setting Name directly should also work
 	ruleDirectName := mustNew(WithAction(Drop))
 	ruleDirectName.Name = "block-all"
-	Expect(ruleDirectName.String()).To(Equal("block-all"))
+	Expect(ruleDirectName.Name).To(Equal("block-all"))
 }
 
 func TestNegatedRuleMatch(t *testing.T) {
@@ -477,34 +458,10 @@ func TestNegatedRuleMatch(t *testing.T) {
 	Expect(ruleNotDstNetOther.Match(pkt)).To(BeTrue())
 }
 
-func TestNegatedRuleString(t *testing.T) {
-	RegisterTestingT(t)
-
-	// Negated proto should show with ! prefix
-	ruleNotProto := mustNew(WithAction(Accept), WithNotProto(proto.TCP))
-	Expect(ruleNotProto.String()).To(Equal("Accept !tcp{*:*->*:*}"))
-
-	// Negated src port should show with ! prefix
-	ruleNotSrcPort := mustNew(WithAction(Drop), WithNotSrcPort(80))
-	Expect(ruleNotSrcPort.String()).To(Equal("Drop *{*:!80->*:*}"))
-
-	// Negated dst port should show with ! prefix
-	ruleNotDstPort := mustNew(WithAction(Accept), WithNotDstPort(53))
-	Expect(ruleNotDstPort.String()).To(Equal("Accept *{*:*->*:!53}"))
-
-	// Negated src net should show with ! prefix
-	ruleNotSrcNet := mustNew(WithAction(Drop), WithNotSrcNet("10.0.0.0/8"))
-	Expect(ruleNotSrcNet.String()).To(Equal("Drop *{!10.0.0.0/8:*->*:*}"))
-
-	// Negated dst net should show with ! prefix
-	ruleNotDstNet := mustNew(WithAction(Accept), WithNotDstNet("1.1.1.1/32"))
-	Expect(ruleNotDstNet.String()).To(Equal("Accept *{*:*->!1.1.1.1/32:*}"))
-}
-
 func TestNegatedRuleConfig(t *testing.T) {
 	RegisterTestingT(t)
 
-	// Valid negated rule — negated fields populate dedicated Rule fields
+	// Valid negated rule — negated options produce dedicated Not* Matcher types
 	rule := mustNew(
 		WithAction(Accept),
 		WithNotProto(proto.TCP),
@@ -513,19 +470,29 @@ func TestNegatedRuleConfig(t *testing.T) {
 		WithNotSrcNet("10.0.0.0/8"),
 		WithNotDstNet("192.168.0.0/16"),
 	)
-	Expect(rule.NotProto).ToNot(BeNil())
-	Expect(rule.NotSource.Port).ToNot(BeNil())
-	Expect(rule.NotDestination.Port).ToNot(BeNil())
-	Expect(rule.NotSource.Net).ToNot(BeNil())
-	Expect(rule.NotDestination.Net).ToNot(BeNil())
-	// Positive fields should be nil when only negated values are specified
-	Expect(rule.Proto).To(BeNil())
-	Expect(rule.Source.Port).To(BeNil())
-	Expect(rule.Destination.Port).To(BeNil())
-	Expect(rule.Source.Net).To(BeNil())
-	Expect(rule.Destination.Net).To(BeNil())
+	_, ok := findMatcher[*NotProtoMatcher](rule)
+	Expect(ok).To(BeTrue())
+	_, ok = findMatcher[*NotSrcPortMatcher](rule)
+	Expect(ok).To(BeTrue())
+	_, ok = findMatcher[*NotDstPortMatcher](rule)
+	Expect(ok).To(BeTrue())
+	_, ok = findMatcher[*NotSrcNetMatcher](rule)
+	Expect(ok).To(BeTrue())
+	_, ok = findMatcher[*NotDstNetMatcher](rule)
+	Expect(ok).To(BeTrue())
+	// Positive matchers should be absent when only negated values are specified
+	_, ok = findMatcher[*ProtoMatcher](rule)
+	Expect(ok).To(BeFalse())
+	_, ok = findMatcher[*SrcPortMatcher](rule)
+	Expect(ok).To(BeFalse())
+	_, ok = findMatcher[*DstPortMatcher](rule)
+	Expect(ok).To(BeFalse())
+	_, ok = findMatcher[*SrcNetMatcher](rule)
+	Expect(ok).To(BeFalse())
+	_, ok = findMatcher[*DstNetMatcher](rule)
+	Expect(ok).To(BeFalse())
 
-	// Positive and negated fields can be combined on the same rule
+	// Positive and negated matchers can be combined on the same rule
 	ruleCombined := mustNew(
 		WithAction(Accept),
 		WithProto(proto.UDP),
@@ -539,16 +506,26 @@ func TestNegatedRuleConfig(t *testing.T) {
 		WithDstNet("1.1.1.0/24"),
 		WithNotDstNet("1.1.1.100/32"),
 	)
-	Expect(ruleCombined.Proto).ToNot(BeNil())
-	Expect(ruleCombined.NotProto).ToNot(BeNil())
-	Expect(ruleCombined.Source.Port).ToNot(BeNil())
-	Expect(ruleCombined.NotSource.Port).ToNot(BeNil())
-	Expect(ruleCombined.Destination.Port).ToNot(BeNil())
-	Expect(ruleCombined.NotDestination.Port).ToNot(BeNil())
-	Expect(ruleCombined.Source.Net).ToNot(BeNil())
-	Expect(ruleCombined.NotSource.Net).ToNot(BeNil())
-	Expect(ruleCombined.Destination.Net).ToNot(BeNil())
-	Expect(ruleCombined.NotDestination.Net).ToNot(BeNil())
+	_, ok = findMatcher[*ProtoMatcher](ruleCombined)
+	Expect(ok).To(BeTrue())
+	_, ok = findMatcher[*NotProtoMatcher](ruleCombined)
+	Expect(ok).To(BeTrue())
+	_, ok = findMatcher[*SrcPortMatcher](ruleCombined)
+	Expect(ok).To(BeTrue())
+	_, ok = findMatcher[*NotSrcPortMatcher](ruleCombined)
+	Expect(ok).To(BeTrue())
+	_, ok = findMatcher[*DstPortMatcher](ruleCombined)
+	Expect(ok).To(BeTrue())
+	_, ok = findMatcher[*NotDstPortMatcher](ruleCombined)
+	Expect(ok).To(BeTrue())
+	_, ok = findMatcher[*SrcNetMatcher](ruleCombined)
+	Expect(ok).To(BeTrue())
+	_, ok = findMatcher[*NotSrcNetMatcher](ruleCombined)
+	Expect(ok).To(BeTrue())
+	_, ok = findMatcher[*DstNetMatcher](ruleCombined)
+	Expect(ok).To(BeTrue())
+	_, ok = findMatcher[*NotDstNetMatcher](ruleCombined)
+	Expect(ok).To(BeTrue())
 }
 
 func TestCombinedPositiveAndNegativeRuleMatch(t *testing.T) {
@@ -577,18 +554,6 @@ func TestCombinedPositiveAndNegativeRuleMatch(t *testing.T) {
 	Expect(ruleProto.Match(pktProto17)).To(BeTrue())
 	Expect(ruleProto.Match(pktProto6)).To(BeFalse())
 	Expect(ruleProto.Match(pktProto1)).To(BeFalse()) // not in positive set
-}
-
-func TestCombinedRuleString(t *testing.T) {
-	RegisterTestingT(t)
-
-	// Combined proto field
-	ruleBoth := mustNew(WithAction(Accept), WithProto(proto.UDP), WithNotProto(proto.TCP))
-	Expect(ruleBoth.String()).To(Equal("Accept udp,!tcp{*:*->*:*}"))
-
-	// Combined src net field
-	ruleSrcNet := mustNew(WithAction(Drop), WithSrcNet("10.0.0.0/8"), WithNotSrcNet("10.10.0.0/16"))
-	Expect(ruleSrcNet.String()).To(Equal("Drop *{10.0.0.0/8,!10.10.0.0/16:*->*:*}"))
 }
 
 func TestNamedSetRuleMatchWithNamedPortString(t *testing.T) {
@@ -737,24 +702,6 @@ func TestCombinedPositiveAndNegativeNamedSetMatch(t *testing.T) {
 	Expect(r.Match(packet.New(packet.WithSrcAddr("172.16.0.1")))).To(BeFalse())
 }
 
-func TestNegatedNamedSetRuleString(t *testing.T) {
-	RegisterTestingT(t)
-
-	ipSet := set.NewIPSet()
-	_ = ipSet.Add("10.0.0.0/8")
-
-	portSet := set.NewPortSet()
-	_ = portSet.Add(uint16(80))
-
-	// NotSrcIPSet only → srcNet shows as !10.0.0.0/8
-	rNegSrcIP := mustNew(WithAction(Accept), WithNotSrcIPSet(ipSet))
-	Expect(rNegSrcIP.String()).To(Equal("Accept *{!10.0.0.0/8:*->*:*}"))
-
-	// NotDstPortSet only → dstPort shows as !80
-	rNotDstPort := mustNew(WithAction(Drop), WithNotDstPortSet(portSet))
-	Expect(rNotDstPort.String()).To(Equal("Drop *{*:*->*:!80}"))
-}
-
 func TestIPPortSetRuleMatch(t *testing.T) {
 	RegisterTestingT(t)
 
@@ -862,22 +809,6 @@ func TestIngressIfaceAndNotIngressIfaceMatch(t *testing.T) {
 	Expect(r.Match(pktEth2)).To(BeFalse())
 }
 
-func TestIngressIfaceRuleString(t *testing.T) {
-	RegisterTestingT(t)
-
-	r := mustNew(WithAction(Accept), WithSrcIface("eth0"))
-	Expect(r.String()).To(Equal("Accept *{*:*->*:*} ingress_iface=eth0"))
-
-	rNot := mustNew(WithAction(Drop), WithNotSrcIface("eth0"))
-	Expect(rNot.String()).To(Equal("Drop *{*:*->*:*} ingress_iface=!eth0"))
-
-	rBoth := mustNew(WithAction(Accept), WithSrcIface("eth0"), WithNotSrcIface("eth1"))
-	Expect(rBoth.String()).To(Equal("Accept *{*:*->*:*} ingress_iface=eth0,!eth1"))
-
-	rMultiNot := mustNew(WithAction(Accept), WithSrcIface("eth0"), WithSrcIface("eth1"), WithNotSrcIface("eth2"), WithNotSrcIface("eth3"))
-	Expect(rMultiNot.String()).To(Equal("Accept *{*:*->*:*} ingress_iface={eth0,eth1},!{eth2,eth3}"))
-}
-
 func TestEgressIfaceMatch(t *testing.T) {
 	RegisterTestingT(t)
 
@@ -931,29 +862,6 @@ func TestEgressIfaceAndNotEgressIfaceMatch(t *testing.T) {
 	Expect(r.Match(pktEth2)).To(BeFalse())
 }
 
-func TestEgressIfaceRuleString(t *testing.T) {
-	RegisterTestingT(t)
-
-	r := mustNew(WithAction(Accept), WithDstIface("eth0"))
-	Expect(r.String()).To(Equal("Accept *{*:*->*:*} egress_iface=eth0"))
-
-	rNot := mustNew(WithAction(Drop), WithNotDstIface("eth0"))
-	Expect(rNot.String()).To(Equal("Drop *{*:*->*:*} egress_iface=!eth0"))
-
-	rBoth := mustNew(WithAction(Accept), WithDstIface("eth0"), WithNotDstIface("eth1"))
-	Expect(rBoth.String()).To(Equal("Accept *{*:*->*:*} egress_iface=eth0,!eth1"))
-
-	rMultiNot := mustNew(WithAction(Accept), WithDstIface("eth0"), WithDstIface("eth1"), WithNotDstIface("eth2"), WithNotDstIface("eth3"))
-	Expect(rMultiNot.String()).To(Equal("Accept *{*:*->*:*} egress_iface={eth0,eth1},!{eth2,eth3}"))
-}
-
-func TestBothIngressAndEgressIfaceRuleString(t *testing.T) {
-	RegisterTestingT(t)
-
-	r := mustNew(WithAction(Accept), WithSrcIface("eth0"), WithDstIface("eth1"))
-	Expect(r.String()).To(Equal("Accept *{*:*->*:*} ingress_iface=eth0 egress_iface=eth1"))
-}
-
 func TestIfaceSetRuleMatch(t *testing.T) {
 	RegisterTestingT(t)
 
@@ -1005,31 +913,4 @@ func TestNotIfaceSetRuleMatch(t *testing.T) {
 	rNotDst := mustNew(WithNotDstIfaceSet(ifaceSet))
 	Expect(rNotDst.Match(pktEgressEth0)).To(BeFalse())
 	Expect(rNotDst.Match(pktEgressEth1)).To(BeTrue())
-}
-
-func TestIfaceSetRuleString(t *testing.T) {
-	RegisterTestingT(t)
-
-	ifaceSet := set.NewIfaceSet()
-	_ = ifaceSet.Add("eth0")
-
-	rSrc := mustNew(WithAction(Accept), WithSrcIfaceSet(ifaceSet))
-	Expect(rSrc.String()).To(Equal("Accept *{*:*->*:*} ingress_iface=eth0"))
-
-	notIfaceSet := set.NewIfaceSet()
-	_ = notIfaceSet.Add("eth1")
-
-	rNotSrc := mustNew(WithAction(Drop), WithNotSrcIfaceSet(notIfaceSet))
-	Expect(rNotSrc.String()).To(Equal("Drop *{*:*->*:*} ingress_iface=!eth1"))
-
-	// Egress (dst) iface set string representation.
-	rDst := mustNew(WithAction(Accept), WithDstIfaceSet(ifaceSet))
-	Expect(rDst.String()).To(Equal("Accept *{*:*->*:*} egress_iface=eth0"))
-
-	rNotDst := mustNew(WithAction(Drop), WithNotDstIfaceSet(notIfaceSet))
-	Expect(rNotDst.String()).To(Equal("Drop *{*:*->*:*} egress_iface=!eth1"))
-
-	// Combined ingress + egress iface sets.
-	rBoth := mustNew(WithAction(Accept), WithSrcIfaceSet(ifaceSet), WithDstIfaceSet(notIfaceSet))
-	Expect(rBoth.String()).To(Equal("Accept *{*:*->*:*} ingress_iface=eth0 egress_iface=eth1"))
 }
