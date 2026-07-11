@@ -24,11 +24,12 @@ const (
 	Return
 )
 
-func (a *Action) String() string {
-	if a == nil {
-		return "no match"
-	}
-	switch *a {
+// String returns the action's name, or "Undefined(n)" for an invalid value.
+// Defined on a value receiver so Action satisfies fmt.Stringer for values,
+// not just pointers; fmt already prints "<nil>" for a nil *Action (e.g. an
+// undecided eval.Result.Verdict) without invoking this method.
+func (a Action) String() string {
+	switch a {
 	case Accept:
 		return "Accept"
 	case Drop:
@@ -40,7 +41,7 @@ func (a *Action) String() string {
 	case Return:
 		return "Return"
 	default:
-		return fmt.Sprintf("Undefined(%d)", *a)
+		return fmt.Sprintf("Undefined(%d)", a)
 	}
 }
 
@@ -53,7 +54,7 @@ func (a Action) Validate() error {
 	case Accept, Drop, Pass, Jump, Return:
 		return nil
 	default:
-		return fmt.Errorf("undefined action %v", &a)
+		return fmt.Errorf("undefined action %v", a)
 	}
 }
 
@@ -79,6 +80,9 @@ type RuleOption func(*Rule) error
 
 func WithJump(chainName string) RuleOption {
 	return func(r *Rule) error {
+		if chainName == "" {
+			return fmt.Errorf("jump target chain name must not be empty")
+		}
 		r.Action = Jump
 		r.JumpTarget = chainName
 		return nil
@@ -87,6 +91,9 @@ func WithJump(chainName string) RuleOption {
 
 func WithAction(action Action) RuleOption {
 	return func(r *Rule) error {
+		if err := action.Validate(); err != nil {
+			return err
+		}
 		r.Action = action
 		return nil
 	}
@@ -583,7 +590,7 @@ func (r *Rule) String() string {
 // Description always returns a compact representation of the rule's action
 // and match conditions, regardless of whether a name is set.
 func (r *Rule) Description() string {
-	return fmt.Sprintf("%s %s", &r.Action, r.MatchConditions())
+	return fmt.Sprintf("%s %s", r.Action, r.MatchConditions())
 }
 
 // MatchConditions returns a compact string describing only the match criteria
