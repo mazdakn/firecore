@@ -72,9 +72,8 @@ See **[docs/GUIDE.md](docs/GUIDE.md)** for the complete reference: core concepts
 
 | Package | Purpose |
 |---|---|
-| `firecore` (root) | `Engine`, `Table`, `Chain` — builds and runs the evaluation pipeline |
+| `firecore` (root) | `Engine`, `Table`, `Chain`, `Result` — builds and runs the evaluation pipeline |
 | `rule` | `Rule`, `Action`, and the `With*` functional options used to match packets |
-| `eval` | `Result` — verdict, rule trace, and conntrack state from `Engine.Evaluate` |
 | `packet` | `Packet` — the metadata a rule matches against |
 | `proto` | IP protocol numbers/names (tcp, udp, icmp, ...) |
 | `port` | Port numbers, well-known names, and ranges |

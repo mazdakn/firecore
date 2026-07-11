@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/mazdakn/firecore/conntrack"
-	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/rule"
 )
@@ -124,7 +123,7 @@ func (t *Table) Validate() error {
 	return nil
 }
 
-func (t *Table) Match(pkt *packet.Packet, result *eval.Result) (bool, error) {
+func (t *Table) Match(pkt *packet.Packet, result *Result) (bool, error) {
 	if pkt == nil {
 		return false, fmt.Errorf("nil packet")
 	}
@@ -149,7 +148,7 @@ func (t *Table) Match(pkt *packet.Packet, result *eval.Result) (bool, error) {
 	return t.MatchDefaultRule(result), nil
 }
 
-func (t *Table) MatchDefaultRule(result *eval.Result) bool {
+func (t *Table) MatchDefaultRule(result *Result) bool {
 	if t.DefaultRule != nil {
 		t.DefaultRule.IncrementPacketCount()
 		result.Trace = append(result.Trace, t.DefaultRule)
@@ -220,7 +219,7 @@ func (c *Chain) AddRule(r *rule.Rule) {
 // Returns chainDecided if a terminal verdict (Accept/Drop) was set, chainPass
 // if a Pass action was triggered, or chainContinue if evaluation should return
 // to the calling context (Return action or no rule matched).
-func (c *Chain) match(pkt *packet.Packet, result *eval.Result, chains map[string]*Chain, depth int) (chainMatchResult, error) {
+func (c *Chain) match(pkt *packet.Packet, result *Result, chains map[string]*Chain, depth int) (chainMatchResult, error) {
 	if depth > MaxJumpDepth {
 		return chainContinue, fmt.Errorf("jump depth exceeded %d at chain %q: possible jump cycle", MaxJumpDepth, c.Name)
 	}

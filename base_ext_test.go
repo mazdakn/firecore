@@ -5,7 +5,6 @@ import (
 
 	firecore "github.com/mazdakn/firecore"
 	"github.com/mazdakn/firecore/conntrack"
-	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/port"
 	"github.com/mazdakn/firecore/proto"
@@ -14,7 +13,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func expectMatchResult(result *eval.Result, expectedVerdict rule.Action, expectedRule string) {
+func expectMatchResult(result *firecore.Result, expectedVerdict rule.Action, expectedRule string) {
 	Expect(result.Verdict).To(HaveValue(Equal(expectedVerdict)))
 	Expect(result.Trace).NotTo(BeEmpty())
 	Expect(result.Trace[len(result.Trace)-1].Name).To(Equal(expectedRule))

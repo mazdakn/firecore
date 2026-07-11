@@ -3,7 +3,6 @@ package firecore
 import (
 	"testing"
 
-	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/rule"
 	. "github.com/onsi/gomega"
@@ -86,7 +85,7 @@ func TestTableMatchUsesAscendingOrder(t *testing.T) {
 	chain.AddRule(lowOrderAccept)
 	tbl.AddChain(chain)
 
-	result := &eval.Result{}
+	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(matched).To(BeTrue())
@@ -111,7 +110,7 @@ func TestTableMatchPassContinuesToNextTable(t *testing.T) {
 	chain.AddRule(passRule)
 	tbl.AddChain(chain)
 
-	result := &eval.Result{}
+	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
 
 	Expect(err).NotTo(HaveOccurred())
@@ -140,7 +139,7 @@ func TestTableMatchPassRuleDoesNotEvaluateDefaultAction(t *testing.T) {
 	chain.AddRule(passRule)
 	tbl.AddChain(chain)
 
-	result := &eval.Result{}
+	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
 
 	Expect(err).NotTo(HaveOccurred())
@@ -164,7 +163,7 @@ func TestTableMatchNoRuleAndDefaultPassReturnsNoMatchVerdict(t *testing.T) {
 		packet.WithDstPort(80),
 	)
 
-	result := &eval.Result{}
+	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
 
 	Expect(err).NotTo(HaveOccurred())
@@ -202,7 +201,7 @@ func TestTableJumpToChainAndReturn(t *testing.T) {
 	tbl.AddChain(mainChain)
 	tbl.AddChain(helperChain)
 
-	result := &eval.Result{}
+	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
 
 	Expect(matched).To(BeTrue())
@@ -240,7 +239,7 @@ func TestTableJumpChainNoMatchReturnsToCaller(t *testing.T) {
 	tbl.AddChain(mainChain)
 	tbl.AddChain(helperChain)
 
-	result := &eval.Result{}
+	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
 
 	// helper chain returned, entry chain fell through → default Drop
@@ -264,7 +263,7 @@ func TestTableMatchNilDefaultRuleReturnsNoMatch(t *testing.T) {
 		packet.WithDstPort(80),
 	)
 
-	result := &eval.Result{}
+	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
 
 	Expect(err).NotTo(HaveOccurred())
@@ -301,7 +300,7 @@ func TestTableReturnActionReturnsToCallerChain(t *testing.T) {
 	tbl.AddChain(mainChain)
 	tbl.AddChain(helperChain)
 
-	result := &eval.Result{}
+	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
 
 	// Return in helper → continues in main after jump-to-helper → accept-all
@@ -328,7 +327,7 @@ func TestTableMatchReturnsErrorForMissingJumpTarget(t *testing.T) {
 		packet.WithDstAddr("1.1.1.1"),
 	)
 
-	result := &eval.Result{}
+	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
 
 	Expect(err).To(MatchError(`chain "missing" not found`))
@@ -461,7 +460,7 @@ func TestTableMatchReturnsErrorWhenJumpDepthExceeded(t *testing.T) {
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 	)
-	result := &eval.Result{}
+	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
 
 	Expect(matched).To(BeFalse())
