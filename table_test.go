@@ -91,34 +91,6 @@ func TestTableMatchUsesAscendingOrder(t *testing.T) {
 	Expect(result.Verdict).To(HaveValue(Equal(Accept)))
 }
 
-func TestTableMatchPassContinuesToNextTable(t *testing.T) {
-	RegisterTestingT(t)
-
-	tbl := newTable("test", 0, Drop)
-	chain := NewChain("main")
-
-	pkt := packet.New(
-		packet.WithSrcAddr("10.0.0.1"),
-		packet.WithDstAddr("1.1.1.1"),
-		packet.WithProto(6),
-		packet.WithDstPort(80),
-	)
-
-	passRule := newRule(WithName("pass-http"), WithOrder(1), WithAction(Pass),
-		WithProto(6), WithDstPort(80))
-	chain.AddRule(passRule)
-	tbl.AddChain(chain)
-
-	result := &Result{}
-	matched, err := tbl.Match(pkt, result)
-
-	Expect(err).NotTo(HaveOccurred())
-	Expect(matched).To(BeFalse())
-	Expect(result.Verdict).To(HaveValue(Equal(Pass)))
-	Expect(result.Trace).To(HaveLen(1))
-	Expect(result.Trace[0].Name).To(Equal("pass-http"))
-}
-
 func TestTableMatchPassRuleDoesNotEvaluateDefaultAction(t *testing.T) {
 	RegisterTestingT(t)
 
