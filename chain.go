@@ -23,6 +23,12 @@ const (
 	chainPass
 )
 
+// MaxJumpDepth caps how many nested Jump rules a single Match call will
+// follow. It exists as a runtime safety net against jump cycles that were
+// never checked with Table.Validate — without it, a cycle recurses until the
+// goroutine stack overflows instead of returning an error.
+const MaxJumpDepth = 64
+
 // Chain holds an ordered slice of rules that are evaluated sequentially.
 type Chain struct {
 	Name  string
@@ -47,13 +53,18 @@ func (c *Chain) AddRule(r *rule.Rule) {
 // match evaluates the chain's rules against mc.
 //
 // chains is the complete map of chains in the parent table, used to resolve
-// Jump targets. All evaluated rules (whether they match or not) are appended
-// to result.Trace.
+// Jump targets. depth counts the number of nested Jump calls taken to reach
+// this chain (the entry chain is called with depth 0); it guards against jump
+// cycles that Table.Validate wasn't run to catch. All evaluated rules
+// (whether they match or not) are appended to result.Trace.
 //
 // Returns chainDecided if a terminal verdict (Accept/Drop) was set, chainPass
 // if a Pass action was triggered, or chainContinue if evaluation should return
 // to the calling context (Return action or no rule matched).
-func (c *Chain) match(ctx *eval.Context, result *eval.Result, chains map[string]*Chain) (chainMatchResult, error) {
+func (c *Chain) match(ctx *eval.Context, result *eval.Result, chains map[string]*Chain, depth int) (chainMatchResult, error) {
+	if depth > MaxJumpDepth {
+		return chainContinue, fmt.Errorf("jump depth exceeded %d at chain %q: possible jump cycle", MaxJumpDepth, c.Name)
+	}
 	var state conntrack.State
 	if ctx.ConnState != nil {
 		state = *ctx.ConnState
@@ -75,7 +86,7 @@ func (c *Chain) match(ctx *eval.Context, result *eval.Result, chains map[string]
 				if !ok {
 					return chainContinue, fmt.Errorf("chain %q not found", r.JumpTarget)
 				}
-				matchResult, err := target.match(ctx, result, chains)
+				matchResult, err := target.match(ctx, result, chains, depth+1)
 				if err != nil {
 					return chainContinue, err
 				}

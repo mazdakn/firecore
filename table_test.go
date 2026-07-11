@@ -391,3 +391,89 @@ func TestTableValidateReturnsNilForNoJumpRules(t *testing.T) {
 
 	Expect(tbl.Validate()).NotTo(HaveOccurred())
 }
+
+func TestTableValidateDetectsDirectCycle(t *testing.T) {
+	RegisterTestingT(t)
+
+	tbl := newTable("test", 0, rule.Drop)
+
+	mainChain := NewChain("main")
+	mainChain.AddRule(newRule(rule.WithName("jump-to-helper"), rule.WithJump("helper")))
+	tbl.AddChain(mainChain)
+
+	helperChain := NewChain("helper")
+	helperChain.AddRule(newRule(rule.WithName("jump-to-main"), rule.WithJump("main")))
+	tbl.AddChain(helperChain)
+
+	Expect(tbl.Validate()).To(MatchError(
+		`chain "main": rule "jump-to-helper" creates a jump cycle: helper -> main -> helper`,
+	))
+}
+
+func TestTableValidateDetectsSelfLoop(t *testing.T) {
+	RegisterTestingT(t)
+
+	tbl := newTable("test", 0, rule.Drop)
+
+	mainChain := NewChain("main")
+	mainChain.AddRule(newRule(rule.WithName("jump-to-self"), rule.WithJump("main")))
+	tbl.AddChain(mainChain)
+
+	Expect(tbl.Validate()).To(MatchError(
+		`chain "main": rule "jump-to-self" creates a jump cycle: main -> main`,
+	))
+}
+
+func TestTableValidateAllowsDiamondJumps(t *testing.T) {
+	RegisterTestingT(t)
+
+	tbl := newTable("test", 0, rule.Drop)
+
+	// main jumps to both left and right, which both jump to shared — not a
+	// cycle, just two paths converging on the same chain.
+	mainChain := NewChain("main")
+	mainChain.AddRule(newRule(rule.WithName("jump-left"), rule.WithOrder(1), rule.WithJump("left")))
+	mainChain.AddRule(newRule(rule.WithName("jump-right"), rule.WithOrder(2), rule.WithJump("right")))
+	tbl.AddChain(mainChain)
+
+	leftChain := NewChain("left")
+	leftChain.AddRule(newRule(rule.WithName("left-to-shared"), rule.WithJump("shared")))
+	tbl.AddChain(leftChain)
+
+	rightChain := NewChain("right")
+	rightChain.AddRule(newRule(rule.WithName("right-to-shared"), rule.WithJump("shared")))
+	tbl.AddChain(rightChain)
+
+	sharedChain := NewChain("shared")
+	sharedChain.AddRule(newRule(rule.WithName("accept-all"), rule.WithAction(rule.Accept)))
+	tbl.AddChain(sharedChain)
+
+	Expect(tbl.Validate()).NotTo(HaveOccurred())
+}
+
+func TestTableMatchReturnsErrorWhenJumpDepthExceeded(t *testing.T) {
+	RegisterTestingT(t)
+
+	tbl := newTable("test", 0, rule.Drop)
+
+	// A direct cycle that Validate was not called to catch; Match must fail
+	// safe via the depth limit instead of recursing until a stack overflow.
+	mainChain := NewChain("main")
+	mainChain.AddRule(newRule(rule.WithName("jump-to-helper"), rule.WithJump("helper")))
+	tbl.AddChain(mainChain)
+
+	helperChain := NewChain("helper")
+	helperChain.AddRule(newRule(rule.WithName("jump-to-main"), rule.WithJump("main")))
+	tbl.AddChain(helperChain)
+
+	pkt := packet.New(
+		packet.WithSrcAddr("10.0.0.1"),
+		packet.WithDstAddr("1.1.1.1"),
+	)
+	mc := eval.Context{Packet: pkt}
+	result := &eval.Result{}
+	matched, err := tbl.Match(&mc, result)
+
+	Expect(matched).To(BeFalse())
+	Expect(err).To(MatchError(ContainSubstring("jump depth exceeded")))
+}

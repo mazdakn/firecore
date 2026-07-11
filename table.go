@@ -3,6 +3,7 @@ package firecore
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/mazdakn/firecore/eval"
 	"github.com/mazdakn/firecore/rule"
@@ -55,13 +56,27 @@ func (t *Table) EntryChain() string {
 	return t.entryChain
 }
 
-// Validate checks that every Jump rule in every chain of the table targets a
-// chain that exists in the table. Call it once all chains have been added —
-// chains may reference each other regardless of add order (see AddChain), so
-// this cannot be checked incrementally as rules or chains are added. Without
-// calling Validate, a dangling jump target is only discovered when a packet
-// actually reaches that rule during Match/Evaluate. Validate does not detect
-// jump cycles.
+// chainColor tracks DFS state for Validate's cycle check: white chains are
+// unvisited, gray chains are on the current jump path (ancestors of the chain
+// being processed), and black chains have been fully explored without being
+// part of a cycle.
+type chainColor int
+
+const (
+	chainWhite chainColor = iota
+	chainGray
+	chainBlack
+)
+
+// Validate checks every Jump rule in every chain of the table: the target
+// must be a chain that exists in the table, and following Jump edges must
+// never lead back to a chain already on the current path. Call it once all
+// chains have been added — chains may reference each other regardless of add
+// order (see AddChain), so this cannot be checked incrementally as rules or
+// chains are added. Without calling Validate, a dangling jump target or a
+// jump cycle is only discovered when a packet actually reaches that rule
+// during Match/Evaluate (a cycle then fails safe via the jump depth limit in
+// Chain.match rather than recursing forever).
 func (t *Table) Validate() error {
 	names := make([]string, 0, len(t.Chains))
 	for name := range t.Chains {
@@ -69,13 +84,38 @@ func (t *Table) Validate() error {
 	}
 	sort.Strings(names)
 
-	for _, name := range names {
+	color := make(map[string]chainColor, len(names))
+
+	var visit func(name string, path []string) error
+	visit = func(name string, path []string) error {
+		color[name] = chainGray
+		path = append(path, name)
 		for _, r := range t.Chains[name].Rules {
 			if r.Action != rule.Jump {
 				continue
 			}
-			if _, ok := t.Chains[r.JumpTarget]; !ok {
-				return fmt.Errorf("chain %q: rule %q jumps to undefined chain %q", name, r, r.JumpTarget)
+			target := r.JumpTarget
+			if _, ok := t.Chains[target]; !ok {
+				return fmt.Errorf("chain %q: rule %q jumps to undefined chain %q", name, r, target)
+			}
+			switch color[target] {
+			case chainGray:
+				cycle := strings.Join(append(path, target), " -> ")
+				return fmt.Errorf("chain %q: rule %q creates a jump cycle: %s", name, r, cycle)
+			case chainWhite:
+				if err := visit(target, path); err != nil {
+					return err
+				}
+			}
+		}
+		color[name] = chainBlack
+		return nil
+	}
+
+	for _, name := range names {
+		if color[name] == chainWhite {
+			if err := visit(name, nil); err != nil {
+				return err
 			}
 		}
 	}
@@ -95,7 +135,7 @@ func (t *Table) Match(ctx *eval.Context, result *eval.Result) (bool, error) {
 
 	entry, ok := t.Chains[t.entryChain]
 	if ok {
-		matchResult, err := entry.match(ctx, result, t.Chains)
+		matchResult, err := entry.match(ctx, result, t.Chains, 0)
 		if err != nil {
 			return false, err
 		}
