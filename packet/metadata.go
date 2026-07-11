@@ -8,10 +8,10 @@ type Metadata struct {
 	Name         string
 }
 
-func NewMetadata(opts ...MetadataOption) *Metadata {
+func NewMetadata(opts ...MetadataOption) Metadata {
 	var meta Metadata
 	for _, o := range opts {
 		o(&meta)
 	}
-	return &meta
+	return meta
 }

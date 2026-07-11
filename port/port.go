@@ -78,8 +78,9 @@ func Parse(s string) (*Port, error) {
 // Resolve returns the port number. When the Port was created with a name,
 // it looks the number up in the well-known ports map. When no name is set,
 // it returns Number directly. If the Name is set but not in the well-known
-// ports map, it falls back to Number; this case should not arise after
-// successful validation via ValidatePortValue.
+// ports map, it falls back to Number; this can only happen if a Port is
+// built directly with a Name that Parse would never produce, since Parse
+// only sets Name when it matches an entry in wellKnownPorts.
 func (p Port) Resolve() uint16 {
 	if p.Name != "" {
 		if n, ok := wellKnownPorts[strings.ToLower(p.Name)]; ok {

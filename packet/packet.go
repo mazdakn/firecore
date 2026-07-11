@@ -85,7 +85,7 @@ type Packet struct {
 
 	Payload []byte
 
-	Metadata *Metadata
+	Metadata Metadata
 }
 
 func (p *Packet) String() string {

@@ -27,7 +27,7 @@ const (
 // String returns the action's name, or "Undefined(n)" for an invalid value.
 // Defined on a value receiver so Action satisfies fmt.Stringer for values,
 // not just pointers; fmt already prints "<nil>" for a nil *Action (e.g. an
-// undecided eval.Result.Verdict) without invoking this method.
+// undecided Result.Verdict) without invoking this method.
 func (a Action) String() string {
 	switch a {
 	case Accept:
