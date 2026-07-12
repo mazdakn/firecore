@@ -43,18 +43,23 @@ func main() {
 
 	entry := firecore.NewChain("entry")
 	entry.AddRule(allowHTTP)
-	policy.AddChain(entry)
+	if err := policy.AddChain(entry); err != nil {
+		panic(err)
+	}
 
 	engine := firecore.New()
 	engine.AddTable(policy)
 
-	pkt := packet.New(
+	pkt, err := packet.New(
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 		packet.WithProto(proto.TCP),
 		packet.WithSrcPort(12345),
 		packet.WithDstPort(80),
 	)
+	if err != nil {
+		panic(err)
+	}
 
 	result, err := engine.Evaluate(pkt)
 	if err != nil {
