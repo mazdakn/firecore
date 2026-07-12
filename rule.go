@@ -243,6 +243,9 @@ func WithNotSrcPort(port uint16) RuleOption {
 // interface, depending on s's Type) is in s.
 func WithSrcSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
+		if s == nil {
+			return fmt.Errorf("set must not be nil")
+		}
 		r.Matchers = append(r.Matchers, &matcher.SrcSetMatcher{Set: s})
 		return nil
 	}
@@ -251,6 +254,9 @@ func WithSrcSet(s set.Set) RuleOption {
 // WithNotSrcSet matches packets whose source-derived value is not in s.
 func WithNotSrcSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
+		if s == nil {
+			return fmt.Errorf("set must not be nil")
+		}
 		r.Matchers = append(r.Matchers, &matcher.NotSrcSetMatcher{Set: s})
 		return nil
 	}
@@ -290,6 +296,9 @@ func WithNotDstPort(port uint16) RuleOption {
 // or interface, depending on s's Type) is in s.
 func WithDstSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
+		if s == nil {
+			return fmt.Errorf("set must not be nil")
+		}
 		r.Matchers = append(r.Matchers, &matcher.DstSetMatcher{Set: s})
 		return nil
 	}
@@ -298,6 +307,9 @@ func WithDstSet(s set.Set) RuleOption {
 // WithNotDstSet matches packets whose destination-derived value is not in s.
 func WithNotDstSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
+		if s == nil {
+			return fmt.Errorf("set must not be nil")
+		}
 		r.Matchers = append(r.Matchers, &matcher.NotDstSetMatcher{Set: s})
 		return nil
 	}

@@ -148,7 +148,7 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 
 	Expect(t1.AddChain(entry)).To(Succeed())
 	Expect(t1.AddChain(admin)).To(Succeed())
-	t1.SetEntryChain("entry")
+	Expect(t1.SetEntryChain("entry")).To(Succeed())
 
 	engine := firecore.New(firecore.WithConntrack())
 	Expect(engine.AddTable(t1)).To(Succeed())
@@ -269,7 +269,7 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 	Expect(classifyReview.AddRule(returnToEntry)).To(Succeed())
 	Expect(classify.AddChain(classifyEntry)).To(Succeed())
 	Expect(classify.AddChain(classifyReview)).To(Succeed())
-	classify.SetEntryChain("entry")
+	Expect(classify.SetEntryChain("entry")).To(Succeed())
 
 	policy, err := firecore.NewTable("policy", 2, firecore.Drop)
 	Expect(err).NotTo(HaveOccurred())
@@ -288,7 +288,7 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 
 	Expect(policyEntry.AddRule(allowTrustedApp)).To(Succeed())
 	Expect(policy.AddChain(policyEntry)).To(Succeed())
-	policy.SetEntryChain("entry")
+	Expect(policy.SetEntryChain("entry")).To(Succeed())
 
 	engine := firecore.New()
 	Expect(engine.AddTable(classify)).To(Succeed())

@@ -587,6 +587,26 @@ func TestCombinedPositiveAndNegativeRuleMatch(t *testing.T) {
 	Expect(ruleProto.Match(pktProto1)).To(BeFalse()) // not in positive set
 }
 
+func TestWithSetNilFails(t *testing.T) {
+	RegisterTestingT(t)
+
+	r, err := NewRule(WithSrcSet(nil))
+	Expect(err).To(HaveOccurred())
+	Expect(r).To(BeNil())
+
+	r, err = NewRule(WithNotSrcSet(nil))
+	Expect(err).To(HaveOccurred())
+	Expect(r).To(BeNil())
+
+	r, err = NewRule(WithDstSet(nil))
+	Expect(err).To(HaveOccurred())
+	Expect(r).To(BeNil())
+
+	r, err = NewRule(WithNotDstSet(nil))
+	Expect(err).To(HaveOccurred())
+	Expect(r).To(BeNil())
+}
+
 func TestNamedSetRuleMatchWithNamedPortString(t *testing.T) {
 	RegisterTestingT(t)
 

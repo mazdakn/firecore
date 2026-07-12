@@ -31,7 +31,7 @@ func TestPayloadRegexPolicy(t *testing.T) {
 
 	Expect(entry.AddRule(allowAPIKey)).To(Succeed())
 	Expect(policy.AddChain(entry)).To(Succeed())
-	policy.SetEntryChain("entry")
+	Expect(policy.SetEntryChain("entry")).To(Succeed())
 
 	engine := firecore.New()
 	Expect(engine.AddTable(policy)).To(Succeed())

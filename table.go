@@ -62,9 +62,13 @@ func (t *Table) AddChain(c *Chain) error {
 }
 
 // SetEntryChain designates the named chain as the entry point for packet
-// evaluation.
-func (t *Table) SetEntryChain(name string) {
+// evaluation. name must refer to a chain already added via AddChain.
+func (t *Table) SetEntryChain(name string) error {
+	if _, ok := t.Chains[name]; !ok {
+		return fmt.Errorf("chain %q not found in table %q", name, t.Name)
+	}
 	t.entryChain = name
+	return nil
 }
 
 // EntryChain returns the name of the entry chain for this table.

@@ -122,6 +122,25 @@ func TestChainAddRuleAllowsRepeatedAnonymousRules(t *testing.T) {
 	Expect(chain.Rules).To(HaveLen(2))
 }
 
+func TestSetEntryChainUnknownNameFails(t *testing.T) {
+	RegisterTestingT(t)
+
+	tbl := newTable("test", 0, Drop)
+	Expect(tbl.SetEntryChain("missing")).To(HaveOccurred())
+	Expect(tbl.EntryChain()).To(Equal(""))
+}
+
+func TestSetEntryChainKnownNameSucceeds(t *testing.T) {
+	RegisterTestingT(t)
+
+	tbl := newTable("test", 0, Drop)
+	Expect(tbl.AddChain(newChain("main"))).To(Succeed())
+	Expect(tbl.AddChain(newChain("other"))).To(Succeed())
+
+	Expect(tbl.SetEntryChain("other")).To(Succeed())
+	Expect(tbl.EntryChain()).To(Equal("other"))
+}
+
 func TestSortTablesSortAscendingAndStable(t *testing.T) {
 	RegisterTestingT(t)
 

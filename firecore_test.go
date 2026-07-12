@@ -276,7 +276,7 @@ func TestEvaluateSupportsJumpChains(t *testing.T) {
 	))).To(Succeed())
 	Expect(tbl.AddChain(entry)).To(Succeed())
 	Expect(tbl.AddChain(admin)).To(Succeed())
-	tbl.SetEntryChain("entry")
+	Expect(tbl.SetEntryChain("entry")).To(Succeed())
 
 	engine := New()
 	Expect(engine.AddTable(tbl)).To(Succeed())
@@ -307,7 +307,7 @@ func TestEvaluateReturnsErrorForMissingJumpTarget(t *testing.T) {
 		WithJump("missing"),
 	))).To(Succeed())
 	Expect(tbl.AddChain(entry)).To(Succeed())
-	tbl.SetEntryChain("entry")
+	Expect(tbl.SetEntryChain("entry")).To(Succeed())
 
 	engine := New()
 	Expect(engine.AddTable(tbl)).To(Succeed())
