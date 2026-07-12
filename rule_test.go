@@ -34,6 +34,19 @@ func TestWithNameEmptyFails(t *testing.T) {
 	Expect(r).To(BeNil())
 }
 
+func TestRuleMatchNilPacketReturnsFalse(t *testing.T) {
+	RegisterTestingT(t)
+
+	r := mustNew(WithProto(proto.TCP), WithDstPort(80), WithAction(Accept))
+	Expect(r.Match(nil)).To(BeFalse())
+	Expect(r.MatchWithConntrackState(nil, conntrack.StateEstablished)).To(BeFalse())
+
+	// A nil packet must not satisfy a negated-only condition either
+	// (fail closed, not fail open).
+	rNegated := mustNew(WithNotProto(proto.TCP))
+	Expect(rNegated.Match(nil)).To(BeFalse())
+}
+
 func TestEmptyRule(t *testing.T) {
 	RegisterTestingT(t)
 

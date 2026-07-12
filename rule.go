@@ -479,6 +479,9 @@ func (r *Rule) Match(pkt *packet.Packet) bool {
 }
 
 func (r *Rule) MatchWithConntrackState(pkt *packet.Packet, state conntrack.State) bool {
+	if pkt == nil {
+		return false
+	}
 	if state == "" {
 		state = conntrack.StateNew
 	}
