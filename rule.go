@@ -239,12 +239,20 @@ func WithNotSrcPort(port uint16) RuleOption {
 	}
 }
 
+// validateSet reports an error if s is nil.
+func validateSet(s set.Set) error {
+	if s == nil {
+		return fmt.Errorf("set must not be nil")
+	}
+	return nil
+}
+
 // WithSrcSet matches packets whose source-derived value (address, port, or
 // interface, depending on s's Type) is in s.
 func WithSrcSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		if s == nil {
-			return fmt.Errorf("set must not be nil")
+		if err := validateSet(s); err != nil {
+			return err
 		}
 		r.Matchers = append(r.Matchers, &matcher.SrcSetMatcher{Set: s})
 		return nil
@@ -254,8 +262,8 @@ func WithSrcSet(s set.Set) RuleOption {
 // WithNotSrcSet matches packets whose source-derived value is not in s.
 func WithNotSrcSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		if s == nil {
-			return fmt.Errorf("set must not be nil")
+		if err := validateSet(s); err != nil {
+			return err
 		}
 		r.Matchers = append(r.Matchers, &matcher.NotSrcSetMatcher{Set: s})
 		return nil
@@ -296,8 +304,8 @@ func WithNotDstPort(port uint16) RuleOption {
 // or interface, depending on s's Type) is in s.
 func WithDstSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		if s == nil {
-			return fmt.Errorf("set must not be nil")
+		if err := validateSet(s); err != nil {
+			return err
 		}
 		r.Matchers = append(r.Matchers, &matcher.DstSetMatcher{Set: s})
 		return nil
@@ -307,8 +315,8 @@ func WithDstSet(s set.Set) RuleOption {
 // WithNotDstSet matches packets whose destination-derived value is not in s.
 func WithNotDstSet(s set.Set) RuleOption {
 	return func(r *Rule) error {
-		if s == nil {
-			return fmt.Errorf("set must not be nil")
+		if err := validateSet(s); err != nil {
+			return err
 		}
 		r.Matchers = append(r.Matchers, &matcher.NotDstSetMatcher{Set: s})
 		return nil
@@ -317,11 +325,20 @@ func WithNotDstSet(s set.Set) RuleOption {
 
 // Source address options.
 
+// parseCIDR parses cidr, returning a consistently-formatted error on failure.
+func parseCIDR(cidr string) (*net.IPNet, error) {
+	_, ipnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return nil, fmt.Errorf("CIDR %s is invalid", cidr)
+	}
+	return ipnet, nil
+}
+
 func WithSrcNet(cidr string) RuleOption {
 	return func(r *Rule) error {
-		_, ipnet, err := net.ParseCIDR(cidr)
+		ipnet, err := parseCIDR(cidr)
 		if err != nil {
-			return fmt.Errorf("CIDR %s is invalid", cidr)
+			return err
 		}
 		m, ok := findMatcher[*matcher.SrcNetMatcher](r)
 		if !ok {
@@ -337,9 +354,9 @@ func WithSrcNet(cidr string) RuleOption {
 
 func WithNotSrcNet(cidr string) RuleOption {
 	return func(r *Rule) error {
-		_, ipnet, err := net.ParseCIDR(cidr)
+		ipnet, err := parseCIDR(cidr)
 		if err != nil {
-			return fmt.Errorf("CIDR %s is invalid", cidr)
+			return err
 		}
 		m, ok := findMatcher[*matcher.NotSrcNetMatcher](r)
 		if !ok {
@@ -357,9 +374,9 @@ func WithNotSrcNet(cidr string) RuleOption {
 
 func WithDstNet(cidr string) RuleOption {
 	return func(r *Rule) error {
-		_, ipnet, err := net.ParseCIDR(cidr)
+		ipnet, err := parseCIDR(cidr)
 		if err != nil {
-			return fmt.Errorf("CIDR %s is invalid", cidr)
+			return err
 		}
 		m, ok := findMatcher[*matcher.DstNetMatcher](r)
 		if !ok {
@@ -375,9 +392,9 @@ func WithDstNet(cidr string) RuleOption {
 
 func WithNotDstNet(cidr string) RuleOption {
 	return func(r *Rule) error {
-		_, ipnet, err := net.ParseCIDR(cidr)
+		ipnet, err := parseCIDR(cidr)
 		if err != nil {
-			return fmt.Errorf("CIDR %s is invalid", cidr)
+			return err
 		}
 		m, ok := findMatcher[*matcher.NotDstNetMatcher](r)
 		if !ok {
