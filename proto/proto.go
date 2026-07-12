@@ -52,23 +52,3 @@ func Parse(s string) (*Proto, error) {
 		return &p, nil
 	}
 }
-
-// UnmarshalYAML implements yaml.InterfaceUnmarshaler so that YAML values may be
-// either a protocol name ("tcp", "udp", "icmp") or a numeric value (0–255).
-func (p *Proto) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var n uint8
-	if err := unmarshal(&n); err == nil {
-		*p = Proto(n)
-		return nil
-	}
-	var s string
-	if err := unmarshal(&s); err != nil {
-		return err
-	}
-	parsed, err := Parse(s)
-	if err != nil {
-		return err
-	}
-	*p = *parsed
-	return nil
-}

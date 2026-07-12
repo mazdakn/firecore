@@ -101,24 +101,3 @@ func (p Port) String() string {
 	}
 	return strconv.Itoa(int(p.Number))
 }
-
-// UnmarshalYAML implements yaml.InterfaceUnmarshaler so that YAML values may be
-// either a port name ("http", "https"), a numeric value (0–65535), or a port
-// range string ("1024-65535").
-func (p *Port) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var n uint16
-	if err := unmarshal(&n); err == nil {
-		p.Number = n
-		return nil
-	}
-	var s string
-	if err := unmarshal(&s); err != nil {
-		return err
-	}
-	parsed, err := Parse(s)
-	if err != nil {
-		return err
-	}
-	*p = *parsed
-	return nil
-}
