@@ -24,6 +24,9 @@ func NewIPSet() *IPSet {
 func (s *IPSet) Add(v any) error {
 	switch val := v.(type) {
 	case *net.IPNet:
+		if err := validateIPNet(val); err != nil {
+			return err
+		}
 		s.nets[val.String()] = val
 		return nil
 	case string:
@@ -36,6 +39,28 @@ func (s *IPSet) Add(v any) error {
 	default:
 		return fmt.Errorf("IPSet.Add: unsupported type %T", v)
 	}
+}
+
+// validateIPNet reports whether ipnet is well-formed: non-nil with a non-nil
+// IP, a non-nil canonical Mask, and an IP length consistent with the mask.
+func validateIPNet(ipnet *net.IPNet) error {
+	if ipnet == nil {
+		return fmt.Errorf("IPSet.Add: *net.IPNet must not be nil")
+	}
+	if ipnet.IP == nil {
+		return fmt.Errorf("IPSet.Add: *net.IPNet has nil IP")
+	}
+	if ipnet.Mask == nil {
+		return fmt.Errorf("IPSet.Add: *net.IPNet has nil Mask")
+	}
+	if _, bits := ipnet.Mask.Size(); bits == 0 {
+		return fmt.Errorf("IPSet.Add: *net.IPNet has invalid mask %v", ipnet.Mask)
+	}
+	if len(ipnet.IP) != len(ipnet.Mask) {
+		return fmt.Errorf("IPSet.Add: *net.IPNet IP length %d does not match mask length %d",
+			len(ipnet.IP), len(ipnet.Mask))
+	}
+	return nil
 }
 
 // Delete removes ipnet from the set.

@@ -26,6 +26,14 @@ func mustNewPacket(t testing.TB, opts ...packet.PacketOption) *packet.Packet {
 	return pkt
 }
 
+func TestWithNameEmptyFails(t *testing.T) {
+	RegisterTestingT(t)
+
+	r, err := NewRule(WithName(""))
+	Expect(err).To(HaveOccurred())
+	Expect(r).To(BeNil())
+}
+
 func TestEmptyRule(t *testing.T) {
 	RegisterTestingT(t)
 
@@ -156,6 +164,22 @@ func TestRuleConntrackStateMatch(t *testing.T) {
 
 	Expect(r.MatchWithConntrackState(pkt, conntrack.StateEstablished)).To(BeTrue())
 	Expect(r.MatchWithConntrackState(pkt, conntrack.StateNew)).To(BeFalse())
+}
+
+func TestWithConnStateInvalidFails(t *testing.T) {
+	RegisterTestingT(t)
+
+	r, err := NewRule(WithConnState(conntrack.State("bogus")))
+	Expect(err).To(HaveOccurred())
+	Expect(r).To(BeNil())
+}
+
+func TestWithNotConnStateInvalidFails(t *testing.T) {
+	RegisterTestingT(t)
+
+	r, err := NewRule(WithNotConnState(conntrack.State("bogus")))
+	Expect(err).To(HaveOccurred())
+	Expect(r).To(BeNil())
 }
 
 func TestRuleNegatedConntrackStateMatch(t *testing.T) {

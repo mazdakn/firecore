@@ -73,6 +73,13 @@ func mustNewPacket(t testing.TB, opts ...packet.PacketOption) *packet.Packet {
 	return pkt
 }
 
+func newChain(t testing.TB, name string) *firecore.Chain {
+	t.Helper()
+	c, err := firecore.NewChain(name)
+	Expect(err).ToNot(HaveOccurred())
+	return c
+}
+
 func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	RegisterTestingT(t)
 
@@ -98,8 +105,8 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	t1, err := firecore.NewTable("policy", 10, firecore.Drop)
 	Expect(err).NotTo(HaveOccurred())
 
-	entry := firecore.NewChain("entry")
-	admin := firecore.NewChain("admin")
+	entry := newChain(t, "entry")
+	admin := newChain(t, "admin")
 
 	allowEstablished, err := firecore.NewRule(
 		firecore.WithName("allow-established"),
@@ -134,17 +141,17 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	)
 	Expect(err).NotTo(HaveOccurred())
 
-	entry.AddRule(allowEstablished)
-	entry.AddRule(jumpAdmin)
-	entry.AddRule(allowDNS)
-	admin.AddRule(allowAdminWeb)
+	Expect(entry.AddRule(allowEstablished)).To(Succeed())
+	Expect(entry.AddRule(jumpAdmin)).To(Succeed())
+	Expect(entry.AddRule(allowDNS)).To(Succeed())
+	Expect(admin.AddRule(allowAdminWeb)).To(Succeed())
 
 	Expect(t1.AddChain(entry)).To(Succeed())
 	Expect(t1.AddChain(admin)).To(Succeed())
 	t1.SetEntryChain("entry")
 
 	engine := firecore.New(firecore.WithConntrack())
-	engine.AddTable(t1)
+	Expect(engine.AddTable(t1)).To(Succeed())
 
 	request := mustNewPacket(t,
 		packet.WithName("admin-request"),
@@ -233,8 +240,8 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 	classify, err := firecore.NewTable("classify", 1, firecore.Drop)
 	Expect(err).NotTo(HaveOccurred())
 
-	classifyEntry := firecore.NewChain("entry")
-	classifyReview := firecore.NewChain("review")
+	classifyEntry := newChain(t, "entry")
+	classifyReview := newChain(t, "review")
 
 	jumpReview, err := firecore.NewRule(
 		firecore.WithName("jump-review"),
@@ -257,9 +264,9 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 	)
 	Expect(err).NotTo(HaveOccurred())
 
-	classifyEntry.AddRule(jumpReview)
-	classifyEntry.AddRule(passTrusted)
-	classifyReview.AddRule(returnToEntry)
+	Expect(classifyEntry.AddRule(jumpReview)).To(Succeed())
+	Expect(classifyEntry.AddRule(passTrusted)).To(Succeed())
+	Expect(classifyReview.AddRule(returnToEntry)).To(Succeed())
 	Expect(classify.AddChain(classifyEntry)).To(Succeed())
 	Expect(classify.AddChain(classifyReview)).To(Succeed())
 	classify.SetEntryChain("entry")
@@ -267,7 +274,7 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 	policy, err := firecore.NewTable("policy", 2, firecore.Drop)
 	Expect(err).NotTo(HaveOccurred())
 
-	policyEntry := firecore.NewChain("entry")
+	policyEntry := newChain(t, "entry")
 	Expect(err).NotTo(HaveOccurred())
 
 	allowTrustedApp, err := firecore.NewRule(
@@ -279,13 +286,13 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 	)
 	Expect(err).NotTo(HaveOccurred())
 
-	policyEntry.AddRule(allowTrustedApp)
+	Expect(policyEntry.AddRule(allowTrustedApp)).To(Succeed())
 	Expect(policy.AddChain(policyEntry)).To(Succeed())
 	policy.SetEntryChain("entry")
 
 	engine := firecore.New()
-	engine.AddTable(classify)
-	engine.AddTable(policy)
+	Expect(engine.AddTable(classify)).To(Succeed())
+	Expect(engine.AddTable(policy)).To(Succeed())
 
 	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("192.0.2.25"),

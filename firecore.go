@@ -41,9 +41,13 @@ func New(opts ...Option) *Engine {
 	return engine
 }
 
-func (e *Engine) AddTable(t *Table) {
+func (e *Engine) AddTable(t *Table) error {
+	if t == nil {
+		return fmt.Errorf("table must not be nil")
+	}
 	e.Tables = append(e.Tables, t)
 	SortTables(e.Tables)
+	return nil
 }
 
 func (e *Engine) Evaluate(pkt *packet.Packet) (*Result, error) {

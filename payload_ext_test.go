@@ -18,7 +18,7 @@ func TestPayloadRegexPolicy(t *testing.T) {
 	policy, err := firecore.NewTable("payload-policy", 1, firecore.Drop)
 	Expect(err).NotTo(HaveOccurred())
 
-	entry := firecore.NewChain("entry")
+	entry := newChain(t, "entry")
 
 	allowAPIKey, err := firecore.NewRule(
 		firecore.WithName("allow-api-key"),
@@ -29,12 +29,12 @@ func TestPayloadRegexPolicy(t *testing.T) {
 	)
 	Expect(err).NotTo(HaveOccurred())
 
-	entry.AddRule(allowAPIKey)
+	Expect(entry.AddRule(allowAPIKey)).To(Succeed())
 	Expect(policy.AddChain(entry)).To(Succeed())
 	policy.SetEntryChain("entry")
 
 	engine := firecore.New()
-	engine.AddTable(policy)
+	Expect(engine.AddTable(policy)).To(Succeed())
 
 	allowed := mustNewPacket(t,
 		packet.WithName("allowed-api-request"),

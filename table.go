@@ -209,18 +209,35 @@ type Chain struct {
 }
 
 // NewChain creates a new, empty chain with the given name.
-func NewChain(name string) *Chain {
-	return &Chain{Name: name}
+func NewChain(name string) (*Chain, error) {
+	if name == "" {
+		return nil, fmt.Errorf("chain name must not be empty")
+	}
+	return &Chain{Name: name}, nil
 }
 
 // AddRule inserts r into the chain, maintaining ascending order by Rule.Order.
-func (c *Chain) AddRule(r *Rule) {
+// Unnamed rules (Rule.Name == "") are anonymous and may repeat; a non-empty
+// name must be unique within the chain.
+func (c *Chain) AddRule(r *Rule) error {
+	if r == nil {
+		return fmt.Errorf("rule must not be nil")
+	}
+	if r.Name != "" {
+		for _, existing := range c.Rules {
+			if existing.Name == r.Name {
+				return fmt.Errorf("rule %q already exists in chain %q", r.Name, c.Name)
+			}
+		}
+	}
+
 	i := sort.Search(len(c.Rules), func(i int) bool {
 		return c.Rules[i].Order > r.Order
 	})
 	c.Rules = append(c.Rules, nil)
 	copy(c.Rules[i+1:], c.Rules[i:])
 	c.Rules[i] = r
+	return nil
 }
 
 // match evaluates the chain's rules against pkt.

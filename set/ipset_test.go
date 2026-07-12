@@ -19,6 +19,35 @@ func TestIPSetAdd(t *testing.T) {
 	Expect(s.Match(net.ParseIP("192.168.0.1"))).To(BeFalse())
 }
 
+func TestIPSetAddInvalidIPNet(t *testing.T) {
+	RegisterTestingT(t)
+
+	s := NewIPSet()
+	Expect(s.Add((*net.IPNet)(nil))).To(HaveOccurred())
+	Expect(s.Add(&net.IPNet{})).To(HaveOccurred())
+	Expect(s.Add(&net.IPNet{IP: net.ParseIP("10.0.0.0")})).To(HaveOccurred())
+	Expect(s.Add(&net.IPNet{Mask: net.CIDRMask(8, 32)})).To(HaveOccurred())
+	Expect(s.Add(&net.IPNet{
+		IP:   net.ParseIP("10.0.0.0").To4(),
+		Mask: net.CIDRMask(64, 128),
+	})).To(HaveOccurred())
+	Expect(s.Add(&net.IPNet{
+		IP:   net.ParseIP("10.0.0.0").To4(),
+		Mask: net.IPMask{0x0f, 0xff, 0xff, 0xff},
+	})).To(HaveOccurred())
+}
+
+func TestIPSetAddZeroPrefixIPNet(t *testing.T) {
+	RegisterTestingT(t)
+
+	s := NewIPSet()
+	Expect(s.Add(&net.IPNet{
+		IP:   net.ParseIP("0.0.0.0").To4(),
+		Mask: net.CIDRMask(0, 32),
+	})).To(Succeed())
+	Expect(s.Match(net.ParseIP("203.0.113.1"))).To(BeTrue())
+}
+
 func TestIPSetDelete(t *testing.T) {
 	RegisterTestingT(t)
 

@@ -114,6 +114,11 @@ func WithAction(action Action) RuleOption {
 
 func WithConnState(state conntrack.State) RuleOption {
 	return func(r *Rule) error {
+		state, err := conntrack.ParseState(string(state))
+		if err != nil {
+			return err
+		}
+
 		m, ok := findMatcher[*matcher.ConnStateMatcher](r)
 		if !ok {
 			m = &matcher.ConnStateMatcher{}
@@ -126,6 +131,11 @@ func WithConnState(state conntrack.State) RuleOption {
 
 func WithNotConnState(state conntrack.State) RuleOption {
 	return func(r *Rule) error {
+		state, err := conntrack.ParseState(string(state))
+		if err != nil {
+			return err
+		}
+
 		m, ok := findMatcher[*matcher.NotConnStateMatcher](r)
 		if !ok {
 			m = &matcher.NotConnStateMatcher{}
@@ -138,6 +148,9 @@ func WithNotConnState(state conntrack.State) RuleOption {
 
 func WithName(name string) RuleOption {
 	return func(r *Rule) error {
+		if name == "" {
+			return fmt.Errorf("rule name must not be empty")
+		}
 		r.Name = name
 		return nil
 	}

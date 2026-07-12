@@ -27,6 +27,12 @@ func newTable(name string, order uint64, defaultAction Action) *Table {
 	return tbl
 }
 
+func newChain(name string) *Chain {
+	c, err := NewChain(name)
+	Expect(err).NotTo(HaveOccurred())
+	return c
+}
+
 func TestNew(t *testing.T) {
 	RegisterTestingT(t)
 
@@ -52,8 +58,8 @@ func TestAddTable(t *testing.T) {
 	second := newTable("second", 2, Drop)
 	engine := New()
 
-	engine.AddTable(first)
-	engine.AddTable(second)
+	Expect(engine.AddTable(first)).To(Succeed())
+	Expect(engine.AddTable(second)).To(Succeed())
 
 	Expect(engine.Tables).To(Equal([]*Table{first, second}))
 }
@@ -62,28 +68,28 @@ func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 	RegisterTestingT(t)
 
 	acceptTable := newTable("accept-table", 2, Drop)
-	acceptChain := NewChain("default")
-	acceptChain.AddRule(newRule(
+	acceptChain := newChain("default")
+	Expect(acceptChain.AddRule(newRule(
 		WithName("accept-http"),
 		WithDstPort(80),
 		WithProto(proto.TCP),
 		WithAction(Accept),
-	))
+	))).To(Succeed())
 	Expect(acceptTable.AddChain(acceptChain)).To(Succeed())
 
 	passTable := newTable("pass-table", 1, Drop)
-	passChain := NewChain("default")
-	passChain.AddRule(newRule(
+	passChain := newChain("default")
+	Expect(passChain.AddRule(newRule(
 		WithName("pass-http"),
 		WithDstPort(80),
 		WithProto(proto.TCP),
 		WithAction(Pass),
-	))
+	))).To(Succeed())
 	Expect(passTable.AddChain(passChain)).To(Succeed())
 
 	engine := New()
-	engine.AddTable(acceptTable)
-	engine.AddTable(passTable)
+	Expect(engine.AddTable(acceptTable)).To(Succeed())
+	Expect(engine.AddTable(passTable)).To(Succeed())
 
 	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
@@ -106,28 +112,28 @@ func TestEvaluatePassesToNextTable(t *testing.T) {
 	RegisterTestingT(t)
 
 	passTable := newTable("pass-table", 1, Drop)
-	passChain := NewChain("default")
-	passChain.AddRule(newRule(
+	passChain := newChain("default")
+	Expect(passChain.AddRule(newRule(
 		WithName("pass-http"),
 		WithDstPort(80),
 		WithProto(proto.TCP),
 		WithAction(Pass),
-	))
+	))).To(Succeed())
 	Expect(passTable.AddChain(passChain)).To(Succeed())
 
 	acceptTable := newTable("accept-table", 2, Drop)
-	acceptChain := NewChain("default")
-	acceptChain.AddRule(newRule(
+	acceptChain := newChain("default")
+	Expect(acceptChain.AddRule(newRule(
 		WithName("accept-http"),
 		WithDstPort(80),
 		WithProto(proto.TCP),
 		WithAction(Accept),
-	))
+	))).To(Succeed())
 	Expect(acceptTable.AddChain(acceptChain)).To(Succeed())
 
 	engine := New()
-	engine.AddTable(passTable)
-	engine.AddTable(acceptTable)
+	Expect(engine.AddTable(passTable)).To(Succeed())
+	Expect(engine.AddTable(acceptTable)).To(Succeed())
 
 	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
@@ -149,20 +155,20 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 	RegisterTestingT(t)
 
 	stateful := newTable("stateful", 1, Drop)
-	defaultChain := NewChain("default")
-	defaultChain.AddRule(newRule(
+	defaultChain := newChain("default")
+	Expect(defaultChain.AddRule(newRule(
 		WithName("allow-new-http"),
 		WithConnState(conntrack.StateNew),
 		WithDstPort(80),
 		WithProto(proto.TCP),
 		WithAction(Accept),
-	))
-	defaultChain.AddRule(newRule(
+	))).To(Succeed())
+	Expect(defaultChain.AddRule(newRule(
 		WithName("allow-established"),
 		WithConnState(conntrack.StateEstablished),
 		WithProto(proto.TCP),
 		WithAction(Accept),
-	))
+	))).To(Succeed())
 	Expect(stateful.AddChain(defaultChain)).To(Succeed())
 
 	request := mustNewPacket(t,
@@ -183,7 +189,7 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 	)
 
 	engine := New(WithConntrack())
-	engine.AddTable(stateful)
+	Expect(engine.AddTable(stateful)).To(Succeed())
 
 	requestResult, err := engine.Evaluate(request)
 	Expect(err).NotTo(HaveOccurred())
@@ -200,20 +206,20 @@ func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 	RegisterTestingT(t)
 
 	stateful := newTable("stateful", 1, Drop)
-	defaultChain := NewChain("default")
-	defaultChain.AddRule(newRule(
+	defaultChain := newChain("default")
+	Expect(defaultChain.AddRule(newRule(
 		WithName("allow-new-http"),
 		WithConnState(conntrack.StateNew),
 		WithDstPort(80),
 		WithProto(proto.TCP),
 		WithAction(Accept),
-	))
-	defaultChain.AddRule(newRule(
+	))).To(Succeed())
+	Expect(defaultChain.AddRule(newRule(
 		WithName("allow-established"),
 		WithConnState(conntrack.StateEstablished),
 		WithProto(proto.TCP),
 		WithAction(Accept),
-	))
+	))).To(Succeed())
 	Expect(stateful.AddChain(defaultChain)).To(Succeed())
 
 	request := mustNewPacket(t,
@@ -234,7 +240,7 @@ func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 	)
 
 	engine := New()
-	engine.AddTable(stateful)
+	Expect(engine.AddTable(stateful)).To(Succeed())
 
 	requestResult, err := engine.Evaluate(request)
 	Expect(err).NotTo(HaveOccurred())
@@ -251,29 +257,29 @@ func TestEvaluateSupportsJumpChains(t *testing.T) {
 	RegisterTestingT(t)
 
 	tbl := newTable("main", 1, Drop)
-	entry := NewChain("entry")
-	entry.AddRule(newRule(
+	entry := newChain("entry")
+	Expect(entry.AddRule(newRule(
 		WithName("jump-admin"),
 		WithSrcNet("10.0.0.0/8"),
 		WithJump("admin"),
-	))
-	entry.AddRule(newRule(
+	))).To(Succeed())
+	Expect(entry.AddRule(newRule(
 		WithName("deny-all"),
 		WithAction(Drop),
-	))
-	admin := NewChain("admin")
-	admin.AddRule(newRule(
+	))).To(Succeed())
+	admin := newChain("admin")
+	Expect(admin.AddRule(newRule(
 		WithName("allow-admin-http"),
 		WithDstPort(80),
 		WithProto(proto.TCP),
 		WithAction(Accept),
-	))
+	))).To(Succeed())
 	Expect(tbl.AddChain(entry)).To(Succeed())
 	Expect(tbl.AddChain(admin)).To(Succeed())
 	tbl.SetEntryChain("entry")
 
 	engine := New()
-	engine.AddTable(tbl)
+	Expect(engine.AddTable(tbl)).To(Succeed())
 
 	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
@@ -295,16 +301,16 @@ func TestEvaluateReturnsErrorForMissingJumpTarget(t *testing.T) {
 	RegisterTestingT(t)
 
 	tbl := newTable("main", 1, Drop)
-	entry := NewChain("entry")
-	entry.AddRule(newRule(
+	entry := newChain("entry")
+	Expect(entry.AddRule(newRule(
 		WithName("jump-missing"),
 		WithJump("missing"),
-	))
+	))).To(Succeed())
 	Expect(tbl.AddChain(entry)).To(Succeed())
 	tbl.SetEntryChain("entry")
 
 	engine := New()
-	engine.AddTable(tbl)
+	Expect(engine.AddTable(tbl)).To(Succeed())
 
 	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
