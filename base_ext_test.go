@@ -80,6 +80,13 @@ func newChain(t testing.TB, name string) *firecore.Chain {
 	return c
 }
 
+func newEngine(t testing.TB, opts ...firecore.Option) *firecore.Engine {
+	t.Helper()
+	e, err := firecore.New(opts...)
+	Expect(err).ToNot(HaveOccurred())
+	return e
+}
+
 func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	RegisterTestingT(t)
 
@@ -150,7 +157,7 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	Expect(t1.AddChain(admin)).To(Succeed())
 	Expect(t1.SetEntryChain("entry")).To(Succeed())
 
-	engine := firecore.New(firecore.WithConntrack())
+	engine := newEngine(t, firecore.WithConntrack())
 	Expect(engine.AddTable(t1)).To(Succeed())
 
 	request := mustNewPacket(t,
@@ -290,7 +297,7 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 	Expect(policy.AddChain(policyEntry)).To(Succeed())
 	Expect(policy.SetEntryChain("entry")).To(Succeed())
 
-	engine := firecore.New()
+	engine := newEngine(t)
 	Expect(engine.AddTable(classify)).To(Succeed())
 	Expect(engine.AddTable(policy)).To(Succeed())
 

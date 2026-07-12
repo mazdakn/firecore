@@ -33,7 +33,7 @@ func TestPayloadRegexPolicy(t *testing.T) {
 	Expect(policy.AddChain(entry)).To(Succeed())
 	Expect(policy.SetEntryChain("entry")).To(Succeed())
 
-	engine := firecore.New()
+	engine := newEngine(t)
 	Expect(engine.AddTable(policy)).To(Succeed())
 
 	allowed := mustNewPacket(t,

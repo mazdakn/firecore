@@ -33,10 +33,17 @@ func newChain(name string) *Chain {
 	return c
 }
 
+func newEngine(opts ...Option) *Engine {
+	e, err := New(opts...)
+	Expect(err).NotTo(HaveOccurred())
+	return e
+}
+
 func TestNew(t *testing.T) {
 	RegisterTestingT(t)
 
-	engine := New()
+	engine, err := New()
+	Expect(err).NotTo(HaveOccurred())
 	Expect(engine).ToNot(BeNil())
 	Expect(engine.Tables).To(BeNil())
 	Expect(engine.tracker).To(BeNil())
@@ -45,10 +52,19 @@ func TestNew(t *testing.T) {
 func TestNewAppliesOptions(t *testing.T) {
 	RegisterTestingT(t)
 
-	engine := New(WithConntrack())
+	engine, err := New(WithConntrack())
+	Expect(err).NotTo(HaveOccurred())
 
 	Expect(engine.Tables).To(BeNil())
 	Expect(engine.tracker).NotTo(BeNil())
+}
+
+func TestNewNilOptionFails(t *testing.T) {
+	RegisterTestingT(t)
+
+	engine, err := New(nil)
+	Expect(err).To(HaveOccurred())
+	Expect(engine).To(BeNil())
 }
 
 func TestAddTable(t *testing.T) {
@@ -56,7 +72,7 @@ func TestAddTable(t *testing.T) {
 
 	first := newTable("first", 1, Drop)
 	second := newTable("second", 2, Drop)
-	engine := New()
+	engine := newEngine()
 
 	Expect(engine.AddTable(first)).To(Succeed())
 	Expect(engine.AddTable(second)).To(Succeed())
@@ -87,7 +103,7 @@ func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 	))).To(Succeed())
 	Expect(passTable.AddChain(passChain)).To(Succeed())
 
-	engine := New()
+	engine := newEngine()
 	Expect(engine.AddTable(acceptTable)).To(Succeed())
 	Expect(engine.AddTable(passTable)).To(Succeed())
 
@@ -131,7 +147,7 @@ func TestEvaluatePassesToNextTable(t *testing.T) {
 	))).To(Succeed())
 	Expect(acceptTable.AddChain(acceptChain)).To(Succeed())
 
-	engine := New()
+	engine := newEngine()
 	Expect(engine.AddTable(passTable)).To(Succeed())
 	Expect(engine.AddTable(acceptTable)).To(Succeed())
 
@@ -188,7 +204,7 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 		packet.WithDstPort(12345),
 	)
 
-	engine := New(WithConntrack())
+	engine := newEngine(WithConntrack())
 	Expect(engine.AddTable(stateful)).To(Succeed())
 
 	requestResult, err := engine.Evaluate(request)
@@ -239,7 +255,7 @@ func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 		packet.WithDstPort(12345),
 	)
 
-	engine := New()
+	engine := newEngine()
 	Expect(engine.AddTable(stateful)).To(Succeed())
 
 	requestResult, err := engine.Evaluate(request)
@@ -278,7 +294,7 @@ func TestEvaluateSupportsJumpChains(t *testing.T) {
 	Expect(tbl.AddChain(admin)).To(Succeed())
 	Expect(tbl.SetEntryChain("entry")).To(Succeed())
 
-	engine := New()
+	engine := newEngine()
 	Expect(engine.AddTable(tbl)).To(Succeed())
 
 	pkt := mustNewPacket(t,
@@ -309,7 +325,7 @@ func TestEvaluateReturnsErrorForMissingJumpTarget(t *testing.T) {
 	Expect(tbl.AddChain(entry)).To(Succeed())
 	Expect(tbl.SetEntryChain("entry")).To(Succeed())
 
-	engine := New()
+	engine := newEngine()
 	Expect(engine.AddTable(tbl)).To(Succeed())
 
 	pkt := mustNewPacket(t,

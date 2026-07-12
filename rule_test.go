@@ -34,6 +34,14 @@ func TestWithNameEmptyFails(t *testing.T) {
 	Expect(r).To(BeNil())
 }
 
+func TestNewRuleNilOptionFails(t *testing.T) {
+	RegisterTestingT(t)
+
+	r, err := NewRule(WithAction(Accept), nil)
+	Expect(err).To(HaveOccurred())
+	Expect(r).To(BeNil())
+}
+
 func TestRuleMatchNilPacketReturnsFalse(t *testing.T) {
 	RegisterTestingT(t)
 

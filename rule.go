@@ -456,6 +456,9 @@ func NewRule(opts ...RuleOption) (*Rule, error) {
 		packetCount: counter.New(),
 	}
 	for _, o := range opts {
+		if o == nil {
+			return nil, fmt.Errorf("rule option must not be nil")
+		}
 		if err := o(&r); err != nil {
 			return nil, err
 		}

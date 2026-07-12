@@ -15,6 +15,14 @@ func mustNewPacket(t testing.TB, opts ...PacketOption) *Packet {
 	return pkt
 }
 
+func TestNewNilOptionFails(t *testing.T) {
+	RegisterTestingT(t)
+
+	pkt, err := New(WithSrcPort(80), nil)
+	Expect(err).To(HaveOccurred())
+	Expect(pkt).To(BeNil())
+}
+
 func TestWithName(t *testing.T) {
 	RegisterTestingT(t)
 

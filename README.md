@@ -41,14 +41,24 @@ func main() {
 		panic(err)
 	}
 
-	entry := firecore.NewChain("entry")
-	entry.AddRule(allowHTTP)
+	entry, err := firecore.NewChain("entry")
+	if err != nil {
+		panic(err)
+	}
+	if err := entry.AddRule(allowHTTP); err != nil {
+		panic(err)
+	}
 	if err := policy.AddChain(entry); err != nil {
 		panic(err)
 	}
 
-	engine := firecore.New()
-	engine.AddTable(policy)
+	engine, err := firecore.New()
+	if err != nil {
+		panic(err)
+	}
+	if err := engine.AddTable(policy); err != nil {
+		panic(err)
+	}
 
 	pkt, err := packet.New(
 		packet.WithSrcAddr("10.0.0.1"),

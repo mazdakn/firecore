@@ -86,6 +86,9 @@ func New(opts ...PacketOption) (*Packet, error) {
 		Metadata: NewMetadata(),
 	}
 	for _, o := range opts {
+		if o == nil {
+			return nil, fmt.Errorf("packet option must not be nil")
+		}
 		if err := o(&p); err != nil {
 			return nil, err
 		}

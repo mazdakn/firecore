@@ -19,11 +19,12 @@ type Result struct {
 	ConnState *conntrack.State
 }
 
-type Option func(*Engine)
+type Option func(*Engine) error
 
 func WithConntrack() Option {
-	return func(e *Engine) {
+	return func(e *Engine) error {
 		e.tracker = conntrack.NewTracker()
+		return nil
 	}
 }
 
@@ -33,12 +34,17 @@ type Engine struct {
 	tracker *conntrack.Tracker
 }
 
-func New(opts ...Option) *Engine {
+func New(opts ...Option) (*Engine, error) {
 	engine := &Engine{}
 	for _, opt := range opts {
-		opt(engine)
+		if opt == nil {
+			return nil, fmt.Errorf("engine option must not be nil")
+		}
+		if err := opt(engine); err != nil {
+			return nil, err
+		}
 	}
-	return engine
+	return engine, nil
 }
 
 func (e *Engine) AddTable(t *Table) error {
