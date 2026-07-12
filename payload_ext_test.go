@@ -30,13 +30,13 @@ func TestPayloadRegexPolicy(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred())
 
 	entry.AddRule(allowAPIKey)
-	policy.AddChain(entry)
+	Expect(policy.AddChain(entry)).To(Succeed())
 	policy.SetEntryChain("entry")
 
 	engine := firecore.New()
 	engine.AddTable(policy)
 
-	allowed := packet.New(
+	allowed := mustNewPacket(t,
 		packet.WithName("allowed-api-request"),
 		packet.WithSrcAddr("192.0.2.10"),
 		packet.WithDstAddr("198.51.100.25"),
@@ -46,7 +46,7 @@ func TestPayloadRegexPolicy(t *testing.T) {
 		packet.WithPayload([]byte("GET /v1/data?api_key=test-123 HTTP/1.1")),
 	)
 
-	blocked := packet.New(
+	blocked := mustNewPacket(t,
 		packet.WithName("blocked-api-request"),
 		packet.WithSrcAddr("192.0.2.11"),
 		packet.WithDstAddr("198.51.100.25"),

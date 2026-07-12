@@ -35,6 +35,9 @@ func (p *PortSet) Add(v any) error {
 		p.set.Add(val)
 		return nil
 	case port.Port:
+		if val.End != 0 && val.End < val.Number {
+			return fmt.Errorf("invalid port range: end %d must be >= start %d", val.End, val.Number)
+		}
 		if val.IsRange() {
 			p.ranges = append(p.ranges, portRange{val.Number, val.End})
 		} else {

@@ -66,3 +66,26 @@ func TestIfaceSetStringEmpty(t *testing.T) {
 	s := NewIfaceSet()
 	Expect(s.String()).To(Equal("{}"))
 }
+
+func TestIfaceSetAddInvalid(t *testing.T) {
+	RegisterTestingT(t)
+
+	tests := []struct {
+		name  string
+		iface string
+	}{
+		{"Empty", ""},
+		{"TooLong", "this-name-is-too-long"},
+		{"ContainsSlash", "eth0/1"},
+		{"ContainsSpace", "eth 0"},
+		{"ContainsTab", "eth\t0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewIfaceSet()
+			Expect(s.Add(tt.iface)).To(HaveOccurred())
+			Expect(s.Match(tt.iface)).To(BeFalse())
+		})
+	}
+}

@@ -8,6 +8,13 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+func mustNewPacket(t testing.TB, opts ...packet.PacketOption) *packet.Packet {
+	t.Helper()
+	pkt, err := packet.New(opts...)
+	Expect(err).ToNot(HaveOccurred())
+	return pkt
+}
+
 func TestParseState(t *testing.T) {
 	RegisterTestingT(t)
 
@@ -27,14 +34,14 @@ func TestTrackerLookupAndCommitAccepted(t *testing.T) {
 	RegisterTestingT(t)
 
 	tracker := NewTracker()
-	request := packet.New(
+	request := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithSrcPort(12345),
 		packet.WithDstAddr("1.1.1.1"),
 		packet.WithDstPort(80),
 		packet.WithProto(proto.TCP),
 	)
-	reply := packet.New(
+	reply := mustNewPacket(t,
 		packet.WithSrcAddr("1.1.1.1"),
 		packet.WithSrcPort(80),
 		packet.WithDstAddr("10.0.0.1"),

@@ -7,6 +7,36 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+func TestNewTableEmptyNameFails(t *testing.T) {
+	RegisterTestingT(t)
+
+	tbl, err := NewTable("", 0, Drop)
+	Expect(err).To(HaveOccurred())
+	Expect(tbl).To(BeNil())
+}
+
+func TestAddChainNilFails(t *testing.T) {
+	RegisterTestingT(t)
+
+	tbl := newTable("test", 0, Drop)
+	Expect(tbl.AddChain(nil)).To(HaveOccurred())
+}
+
+func TestAddChainEmptyNameFails(t *testing.T) {
+	RegisterTestingT(t)
+
+	tbl := newTable("test", 0, Drop)
+	Expect(tbl.AddChain(NewChain(""))).To(HaveOccurred())
+}
+
+func TestAddChainDuplicateNameFails(t *testing.T) {
+	RegisterTestingT(t)
+
+	tbl := newTable("test", 0, Drop)
+	Expect(tbl.AddChain(NewChain("main"))).To(Succeed())
+	Expect(tbl.AddChain(NewChain("main"))).To(HaveOccurred())
+}
+
 func TestChainAddRuleSortAscending(t *testing.T) {
 	RegisterTestingT(t)
 
@@ -68,7 +98,7 @@ func TestTableMatchUsesAscendingOrder(t *testing.T) {
 	tbl := newTable("test", 0, Drop)
 	chain := NewChain("main")
 
-	pkt := packet.New(
+	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 		packet.WithProto(6),
@@ -82,7 +112,7 @@ func TestTableMatchUsesAscendingOrder(t *testing.T) {
 
 	chain.AddRule(highOrderDrop)
 	chain.AddRule(lowOrderAccept)
-	tbl.AddChain(chain)
+	Expect(tbl.AddChain(chain)).To(Succeed())
 
 	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
@@ -97,7 +127,7 @@ func TestTableMatchPassRuleDoesNotEvaluateDefaultAction(t *testing.T) {
 	tbl := newTable("test", 0, Drop)
 	chain := NewChain("main")
 
-	pkt := packet.New(
+	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 		packet.WithProto(6),
@@ -108,7 +138,7 @@ func TestTableMatchPassRuleDoesNotEvaluateDefaultAction(t *testing.T) {
 		WithProto(6), WithDstPort(80))
 
 	chain.AddRule(passRule)
-	tbl.AddChain(chain)
+	Expect(tbl.AddChain(chain)).To(Succeed())
 
 	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
@@ -125,9 +155,9 @@ func TestTableMatchNoRuleAndDefaultPassReturnsNoMatchVerdict(t *testing.T) {
 
 	tbl := newTable("test", 0, Pass)
 	chain := NewChain("main")
-	tbl.AddChain(chain)
+	Expect(tbl.AddChain(chain)).To(Succeed())
 
-	pkt := packet.New(
+	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 		packet.WithProto(6),
@@ -150,7 +180,7 @@ func TestTableJumpToChainAndReturn(t *testing.T) {
 
 	tbl := newTable("test", 0, Drop)
 
-	pkt := packet.New(
+	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 		packet.WithProto(6),
@@ -169,8 +199,8 @@ func TestTableJumpToChainAndReturn(t *testing.T) {
 		WithJump("helper"), WithProto(6))
 	mainChain.AddRule(jumpRule)
 
-	tbl.AddChain(mainChain)
-	tbl.AddChain(helperChain)
+	Expect(tbl.AddChain(mainChain)).To(Succeed())
+	Expect(tbl.AddChain(helperChain)).To(Succeed())
 
 	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
@@ -188,7 +218,7 @@ func TestTableJumpChainNoMatchReturnsToCaller(t *testing.T) {
 
 	tbl := newTable("test", 0, Drop)
 
-	pkt := packet.New(
+	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 		packet.WithProto(6),
@@ -207,8 +237,8 @@ func TestTableJumpChainNoMatchReturnsToCaller(t *testing.T) {
 		WithJump("helper"), WithProto(6))
 	mainChain.AddRule(jumpRule)
 
-	tbl.AddChain(mainChain)
-	tbl.AddChain(helperChain)
+	Expect(tbl.AddChain(mainChain)).To(Succeed())
+	Expect(tbl.AddChain(helperChain)).To(Succeed())
 
 	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
@@ -225,9 +255,9 @@ func TestTableMatchNilDefaultRuleReturnsNoMatch(t *testing.T) {
 	tbl := newTable("test", 0, Drop)
 	tbl.DefaultRule = nil
 	chain := NewChain("main")
-	tbl.AddChain(chain)
+	Expect(tbl.AddChain(chain)).To(Succeed())
 
-	pkt := packet.New(
+	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 		packet.WithProto(6),
@@ -248,7 +278,7 @@ func TestTableReturnActionReturnsToCallerChain(t *testing.T) {
 
 	tbl := newTable("test", 0, Drop)
 
-	pkt := packet.New(
+	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 		packet.WithProto(6),
@@ -268,8 +298,8 @@ func TestTableReturnActionReturnsToCallerChain(t *testing.T) {
 	mainChain.AddRule(jumpRule)
 	mainChain.AddRule(acceptAll)
 
-	tbl.AddChain(mainChain)
-	tbl.AddChain(helperChain)
+	Expect(tbl.AddChain(mainChain)).To(Succeed())
+	Expect(tbl.AddChain(helperChain)).To(Succeed())
 
 	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
@@ -291,9 +321,9 @@ func TestTableMatchReturnsErrorForMissingJumpTarget(t *testing.T) {
 		WithName("jump-missing"),
 		WithJump("missing"),
 	))
-	tbl.AddChain(mainChain)
+	Expect(tbl.AddChain(mainChain)).To(Succeed())
 
-	pkt := packet.New(
+	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 	)
@@ -317,7 +347,7 @@ func TestTableValidateReturnsErrorForMissingJumpTarget(t *testing.T) {
 		WithName("jump-missing"),
 		WithJump("missing"),
 	))
-	tbl.AddChain(mainChain)
+	Expect(tbl.AddChain(mainChain)).To(Succeed())
 
 	Expect(tbl.Validate()).To(MatchError(`chain "main": rule "jump-missing" jumps to undefined chain "missing"`))
 }
@@ -331,13 +361,13 @@ func TestTableValidateAllowsForwardReferencedChains(t *testing.T) {
 	// added to the table — this forward reference must remain valid.
 	mainChain := NewChain("main")
 	mainChain.AddRule(newRule(WithName("jump-to-helper"), WithJump("helper")))
-	tbl.AddChain(mainChain)
+	Expect(tbl.AddChain(mainChain)).To(Succeed())
 
 	Expect(tbl.Validate()).To(MatchError(`chain "main": rule "jump-to-helper" jumps to undefined chain "helper"`))
 
 	helperChain := NewChain("helper")
 	helperChain.AddRule(newRule(WithName("accept-all"), WithAction(Accept)))
-	tbl.AddChain(helperChain)
+	Expect(tbl.AddChain(helperChain)).To(Succeed())
 
 	Expect(tbl.Validate()).NotTo(HaveOccurred())
 }
@@ -348,7 +378,7 @@ func TestTableValidateReturnsNilForNoJumpRules(t *testing.T) {
 	tbl := newTable("test", 0, Drop)
 	mainChain := NewChain("main")
 	mainChain.AddRule(newRule(WithName("accept-all"), WithAction(Accept)))
-	tbl.AddChain(mainChain)
+	Expect(tbl.AddChain(mainChain)).To(Succeed())
 
 	Expect(tbl.Validate()).NotTo(HaveOccurred())
 }
@@ -360,11 +390,11 @@ func TestTableValidateDetectsDirectCycle(t *testing.T) {
 
 	mainChain := NewChain("main")
 	mainChain.AddRule(newRule(WithName("jump-to-helper"), WithJump("helper")))
-	tbl.AddChain(mainChain)
+	Expect(tbl.AddChain(mainChain)).To(Succeed())
 
 	helperChain := NewChain("helper")
 	helperChain.AddRule(newRule(WithName("jump-to-main"), WithJump("main")))
-	tbl.AddChain(helperChain)
+	Expect(tbl.AddChain(helperChain)).To(Succeed())
 
 	Expect(tbl.Validate()).To(MatchError(
 		`chain "main": rule "jump-to-helper" creates a jump cycle: helper -> main -> helper`,
@@ -378,7 +408,7 @@ func TestTableValidateDetectsSelfLoop(t *testing.T) {
 
 	mainChain := NewChain("main")
 	mainChain.AddRule(newRule(WithName("jump-to-self"), WithJump("main")))
-	tbl.AddChain(mainChain)
+	Expect(tbl.AddChain(mainChain)).To(Succeed())
 
 	Expect(tbl.Validate()).To(MatchError(
 		`chain "main": rule "jump-to-self" creates a jump cycle: main -> main`,
@@ -395,19 +425,19 @@ func TestTableValidateAllowsDiamondJumps(t *testing.T) {
 	mainChain := NewChain("main")
 	mainChain.AddRule(newRule(WithName("jump-left"), WithOrder(1), WithJump("left")))
 	mainChain.AddRule(newRule(WithName("jump-right"), WithOrder(2), WithJump("right")))
-	tbl.AddChain(mainChain)
+	Expect(tbl.AddChain(mainChain)).To(Succeed())
 
 	leftChain := NewChain("left")
 	leftChain.AddRule(newRule(WithName("left-to-shared"), WithJump("shared")))
-	tbl.AddChain(leftChain)
+	Expect(tbl.AddChain(leftChain)).To(Succeed())
 
 	rightChain := NewChain("right")
 	rightChain.AddRule(newRule(WithName("right-to-shared"), WithJump("shared")))
-	tbl.AddChain(rightChain)
+	Expect(tbl.AddChain(rightChain)).To(Succeed())
 
 	sharedChain := NewChain("shared")
 	sharedChain.AddRule(newRule(WithName("accept-all"), WithAction(Accept)))
-	tbl.AddChain(sharedChain)
+	Expect(tbl.AddChain(sharedChain)).To(Succeed())
 
 	Expect(tbl.Validate()).NotTo(HaveOccurred())
 }
@@ -421,13 +451,13 @@ func TestTableMatchReturnsErrorWhenJumpDepthExceeded(t *testing.T) {
 	// safe via the depth limit instead of recursing until a stack overflow.
 	mainChain := NewChain("main")
 	mainChain.AddRule(newRule(WithName("jump-to-helper"), WithJump("helper")))
-	tbl.AddChain(mainChain)
+	Expect(tbl.AddChain(mainChain)).To(Succeed())
 
 	helperChain := NewChain("helper")
 	helperChain.AddRule(newRule(WithName("jump-to-main"), WithJump("main")))
-	tbl.AddChain(helperChain)
+	Expect(tbl.AddChain(helperChain)).To(Succeed())
 
-	pkt := packet.New(
+	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 	)

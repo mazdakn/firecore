@@ -69,7 +69,7 @@ func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 		WithProto(proto.TCP),
 		WithAction(Accept),
 	))
-	acceptTable.AddChain(acceptChain)
+	Expect(acceptTable.AddChain(acceptChain)).To(Succeed())
 
 	passTable := newTable("pass-table", 1, Drop)
 	passChain := NewChain("default")
@@ -79,19 +79,20 @@ func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 		WithProto(proto.TCP),
 		WithAction(Pass),
 	))
-	passTable.AddChain(passChain)
+	Expect(passTable.AddChain(passChain)).To(Succeed())
 
 	engine := New()
 	engine.AddTable(acceptTable)
 	engine.AddTable(passTable)
 
-	result, err := engine.Evaluate(packet.New(
+	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 		packet.WithProto(proto.TCP),
 		packet.WithSrcPort(12345),
 		packet.WithDstPort(80),
-	))
+	)
+	result, err := engine.Evaluate(pkt)
 
 	Expect(err).NotTo(HaveOccurred())
 	Expect(engine.Tables).To(Equal([]*Table{passTable, acceptTable}))
@@ -112,7 +113,7 @@ func TestEvaluatePassesToNextTable(t *testing.T) {
 		WithProto(proto.TCP),
 		WithAction(Pass),
 	))
-	passTable.AddChain(passChain)
+	Expect(passTable.AddChain(passChain)).To(Succeed())
 
 	acceptTable := newTable("accept-table", 2, Drop)
 	acceptChain := NewChain("default")
@@ -122,19 +123,20 @@ func TestEvaluatePassesToNextTable(t *testing.T) {
 		WithProto(proto.TCP),
 		WithAction(Accept),
 	))
-	acceptTable.AddChain(acceptChain)
+	Expect(acceptTable.AddChain(acceptChain)).To(Succeed())
 
 	engine := New()
 	engine.AddTable(passTable)
 	engine.AddTable(acceptTable)
 
-	result, err := engine.Evaluate(packet.New(
+	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 		packet.WithProto(proto.TCP),
 		packet.WithSrcPort(12345),
 		packet.WithDstPort(80),
-	))
+	)
+	result, err := engine.Evaluate(pkt)
 
 	Expect(err).NotTo(HaveOccurred())
 	Expect(result.Verdict).To(HaveValue(Equal(Accept)))
@@ -161,9 +163,9 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 		WithProto(proto.TCP),
 		WithAction(Accept),
 	))
-	stateful.AddChain(defaultChain)
+	Expect(stateful.AddChain(defaultChain)).To(Succeed())
 
-	request := packet.New(
+	request := mustNewPacket(t,
 		packet.WithName("request"),
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
@@ -171,7 +173,7 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 		packet.WithSrcPort(12345),
 		packet.WithDstPort(80),
 	)
-	reply := packet.New(
+	reply := mustNewPacket(t,
 		packet.WithName("reply"),
 		packet.WithSrcAddr("1.1.1.1"),
 		packet.WithDstAddr("10.0.0.1"),
@@ -212,9 +214,9 @@ func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 		WithProto(proto.TCP),
 		WithAction(Accept),
 	))
-	stateful.AddChain(defaultChain)
+	Expect(stateful.AddChain(defaultChain)).To(Succeed())
 
-	request := packet.New(
+	request := mustNewPacket(t,
 		packet.WithName("request"),
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
@@ -222,7 +224,7 @@ func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 		packet.WithSrcPort(12345),
 		packet.WithDstPort(80),
 	)
-	reply := packet.New(
+	reply := mustNewPacket(t,
 		packet.WithName("reply"),
 		packet.WithSrcAddr("1.1.1.1"),
 		packet.WithDstAddr("10.0.0.1"),
@@ -266,20 +268,21 @@ func TestEvaluateSupportsJumpChains(t *testing.T) {
 		WithProto(proto.TCP),
 		WithAction(Accept),
 	))
-	tbl.AddChain(entry)
-	tbl.AddChain(admin)
+	Expect(tbl.AddChain(entry)).To(Succeed())
+	Expect(tbl.AddChain(admin)).To(Succeed())
 	tbl.SetEntryChain("entry")
 
 	engine := New()
 	engine.AddTable(tbl)
 
-	result, err := engine.Evaluate(packet.New(
+	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
 		packet.WithProto(proto.TCP),
 		packet.WithSrcPort(12345),
 		packet.WithDstPort(80),
-	))
+	)
+	result, err := engine.Evaluate(pkt)
 
 	Expect(err).NotTo(HaveOccurred())
 	Expect(result.Verdict).To(HaveValue(Equal(Accept)))
@@ -297,16 +300,17 @@ func TestEvaluateReturnsErrorForMissingJumpTarget(t *testing.T) {
 		WithName("jump-missing"),
 		WithJump("missing"),
 	))
-	tbl.AddChain(entry)
+	Expect(tbl.AddChain(entry)).To(Succeed())
 	tbl.SetEntryChain("entry")
 
 	engine := New()
 	engine.AddTable(tbl)
 
-	result, err := engine.Evaluate(packet.New(
+	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithDstAddr("1.1.1.1"),
-	))
+	)
+	result, err := engine.Evaluate(pkt)
 
 	Expect(err).To(MatchError(`evaluate in table "main": chain "missing" not found`))
 	Expect(result).To(BeNil())

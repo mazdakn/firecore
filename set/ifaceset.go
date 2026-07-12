@@ -4,7 +4,12 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode"
 )
+
+// maxIfaceNameLen is the maximum length of a Linux network interface name,
+// i.e. IFNAMSIZ (16) minus the trailing NUL terminator.
+const maxIfaceNameLen = 15
 
 // IfaceSet is a set of network interface name strings.
 type IfaceSet struct {
@@ -16,16 +21,36 @@ func NewIfaceSet() *IfaceSet {
 	return &IfaceSet{*New[string]()}
 }
 
-// Add inserts a value into the set. v must be a string interface name.
+// Add inserts a value into the set. v must be a non-empty string interface
+// name of at most maxIfaceNameLen bytes, containing no '/' or whitespace.
 // It implements the Set interface.
 func (s *IfaceSet) Add(v any) error {
 	switch val := v.(type) {
 	case string:
+		if err := validateIfaceName(val); err != nil {
+			return err
+		}
 		s.set.Add(val)
 		return nil
 	default:
 		return fmt.Errorf("IfaceSet.Add: unsupported type %T", v)
 	}
+}
+
+func validateIfaceName(name string) error {
+	if name == "" {
+		return fmt.Errorf("IfaceSet.Add: interface name must not be empty")
+	}
+	if len(name) > maxIfaceNameLen {
+		return fmt.Errorf("IfaceSet.Add: interface name %q exceeds %d bytes", name, maxIfaceNameLen)
+	}
+	if strings.ContainsRune(name, '/') {
+		return fmt.Errorf("IfaceSet.Add: interface name %q must not contain '/'", name)
+	}
+	if strings.IndexFunc(name, unicode.IsSpace) >= 0 {
+		return fmt.Errorf("IfaceSet.Add: interface name %q must not contain whitespace", name)
+	}
+	return nil
 }
 
 // Match reports whether v is present in the set. v must be a string interface

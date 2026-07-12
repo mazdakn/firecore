@@ -66,6 +66,13 @@ func mustAddToSet(t *testing.T, s set.Set, value any) {
 	}
 }
 
+func mustNewPacket(t testing.TB, opts ...packet.PacketOption) *packet.Packet {
+	t.Helper()
+	pkt, err := packet.New(opts...)
+	Expect(err).ToNot(HaveOccurred())
+	return pkt
+}
+
 func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	RegisterTestingT(t)
 
@@ -132,14 +139,14 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	entry.AddRule(allowDNS)
 	admin.AddRule(allowAdminWeb)
 
-	t1.AddChain(entry)
-	t1.AddChain(admin)
+	Expect(t1.AddChain(entry)).To(Succeed())
+	Expect(t1.AddChain(admin)).To(Succeed())
 	t1.SetEntryChain("entry")
 
 	engine := firecore.New(firecore.WithConntrack())
 	engine.AddTable(t1)
 
-	request := packet.New(
+	request := mustNewPacket(t,
 		packet.WithName("admin-request"),
 		packet.WithSrcAddr("10.1.2.3"),
 		packet.WithDstAddr("172.16.0.10"),
@@ -148,7 +155,7 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 		packet.WithSrcPort(42424),
 		packet.WithDstPort(https.Resolve()),
 	)
-	reply := packet.New(
+	reply := mustNewPacket(t,
 		packet.WithName("admin-reply"),
 		packet.WithSrcAddr("172.16.0.10"),
 		packet.WithDstAddr("10.1.2.3"),
@@ -157,7 +164,7 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 		packet.WithSrcPort(https.Resolve()),
 		packet.WithDstPort(42424),
 	)
-	dnsQuery := packet.New(
+	dnsQuery := mustNewPacket(t,
 		packet.WithName("dns-query"),
 		packet.WithSrcAddr("192.0.2.10"),
 		packet.WithDstAddr("8.8.8.8"),
@@ -165,7 +172,7 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 		packet.WithSrcPort(53000),
 		packet.WithDstPort(53),
 	)
-	outsider := packet.New(
+	outsider := mustNewPacket(t,
 		packet.WithName("outsider"),
 		packet.WithSrcAddr("192.0.2.11"),
 		packet.WithDstAddr("172.16.0.10"),
@@ -253,8 +260,8 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 	classifyEntry.AddRule(jumpReview)
 	classifyEntry.AddRule(passTrusted)
 	classifyReview.AddRule(returnToEntry)
-	classify.AddChain(classifyEntry)
-	classify.AddChain(classifyReview)
+	Expect(classify.AddChain(classifyEntry)).To(Succeed())
+	Expect(classify.AddChain(classifyReview)).To(Succeed())
 	classify.SetEntryChain("entry")
 
 	policy, err := firecore.NewTable("policy", 2, firecore.Drop)
@@ -273,14 +280,14 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred())
 
 	policyEntry.AddRule(allowTrustedApp)
-	policy.AddChain(policyEntry)
+	Expect(policy.AddChain(policyEntry)).To(Succeed())
 	policy.SetEntryChain("entry")
 
 	engine := firecore.New()
 	engine.AddTable(classify)
 	engine.AddTable(policy)
 
-	pkt := packet.New(
+	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("192.0.2.25"),
 		packet.WithDstAddr("198.51.100.10"),
 		packet.WithProto(tcp),

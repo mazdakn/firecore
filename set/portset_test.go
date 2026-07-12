@@ -104,6 +104,16 @@ func TestPortSetAddRange(t *testing.T) {
 	Expect(ps.Match(uint16(80))).To(BeFalse())
 }
 
+func TestPortSetAddInvertedRangeFails(t *testing.T) {
+	RegisterTestingT(t)
+
+	ps := NewPortSet()
+	Expect(ps.Add(port.Port{Number: 100, End: 50})).To(HaveOccurred())
+	Expect(ps.Match(uint16(100))).To(BeFalse())
+	Expect(ps.Match(uint16(75))).To(BeFalse())
+	Expect(ps.Match(uint16(50))).To(BeFalse())
+}
+
 func TestPortSetAddRangeString(t *testing.T) {
 	RegisterTestingT(t)
 

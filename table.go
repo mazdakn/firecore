@@ -20,6 +20,10 @@ type Table struct {
 }
 
 func NewTable(name string, order uint64, defaultAction Action) (*Table, error) {
+	if name == "" {
+		return nil, fmt.Errorf("table name must not be empty")
+	}
+
 	defaultRule, err := NewRule(
 		WithAction(defaultAction),
 		WithName(fmt.Sprintf("table %s default action", name)),
@@ -37,12 +41,24 @@ func NewTable(name string, order uint64, defaultAction Action) (*Table, error) {
 }
 
 // AddChain adds c to the table. The first chain added becomes the entry chain
-// unless SetEntryChain is called explicitly.
-func (t *Table) AddChain(c *Chain) {
+// unless SetEntryChain is called explicitly. It is an error for c to be nil,
+// have an empty name, or share its name with a chain already in the table.
+func (t *Table) AddChain(c *Chain) error {
+	if c == nil {
+		return fmt.Errorf("chain must not be nil")
+	}
+	if c.Name == "" {
+		return fmt.Errorf("chain name must not be empty")
+	}
+	if _, exists := t.Chains[c.Name]; exists {
+		return fmt.Errorf("chain %q already exists in table %q", c.Name, t.Name)
+	}
+
 	t.Chains[c.Name] = c
 	if t.entryChain == "" {
 		t.entryChain = c.Name
 	}
+	return nil
 }
 
 // SetEntryChain designates the named chain as the entry point for packet

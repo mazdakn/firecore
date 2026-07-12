@@ -8,6 +8,13 @@ import (
 	"github.com/mazdakn/firecore/proto"
 )
 
+func mustNewPacket(t testing.TB, opts ...PacketOption) *Packet {
+	t.Helper()
+	pkt, err := New(opts...)
+	Expect(err).ToNot(HaveOccurred())
+	return pkt
+}
+
 func TestWithName(t *testing.T) {
 	RegisterTestingT(t)
 
@@ -22,7 +29,7 @@ func TestWithName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkt := New(WithName(tt.pktName))
+			pkt := mustNewPacket(t, WithName(tt.pktName))
 			Expect(pkt.Metadata.Name).To(Equal(tt.pktName))
 		})
 	}
@@ -32,7 +39,7 @@ func TestPacketStringWithName(t *testing.T) {
 	RegisterTestingT(t)
 
 	// When name is set, String() should return the name
-	pkt := New(
+	pkt := mustNewPacket(t,
 		WithName("web-traffic"),
 		WithProto(6),
 		WithSrcAddr("10.0.0.1"),
@@ -43,7 +50,7 @@ func TestPacketStringWithName(t *testing.T) {
 	Expect(pkt.String()).To(Equal("web-traffic"))
 
 	// When name is empty, String() should return the detailed format
-	pkt2 := New(
+	pkt2 := mustNewPacket(t,
 		WithProto(6),
 		WithSrcAddr("10.0.0.1"),
 		WithSrcPort(12345),
@@ -56,7 +63,7 @@ func TestPacketStringWithName(t *testing.T) {
 func TestNewEmpty(t *testing.T) {
 	RegisterTestingT(t)
 
-	pkt := New()
+	pkt := mustNewPacket(t)
 	Expect(pkt).ToNot(BeNil())
 	Expect(pkt.SrcAddr).To(BeNil())
 	Expect(pkt.DstAddr).To(BeNil())
@@ -70,7 +77,7 @@ func TestWithPayload(t *testing.T) {
 	RegisterTestingT(t)
 
 	original := []byte("GET /healthz HTTP/1.1")
-	pkt := New(WithPayload(original))
+	pkt := mustNewPacket(t, WithPayload(original))
 
 	Expect(pkt.Payload).To(Equal([]byte("GET /healthz HTTP/1.1")))
 
@@ -94,7 +101,7 @@ func TestWithProto(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkt := New(WithProto(tt.proto))
+			pkt := mustNewPacket(t, WithProto(tt.proto))
 			Expect(pkt.Proto).To(Equal(tt.proto))
 		})
 	}
@@ -116,7 +123,7 @@ func TestWithSrcPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkt := New(WithSrcPort(tt.port))
+			pkt := mustNewPacket(t, WithSrcPort(tt.port))
 			Expect(pkt.SrcPort).To(Equal(tt.port))
 		})
 	}
@@ -138,7 +145,7 @@ func TestWithDstPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkt := New(WithDstPort(tt.port))
+			pkt := mustNewPacket(t, WithDstPort(tt.port))
 			Expect(pkt.DstPort).To(Equal(tt.port))
 		})
 	}
@@ -160,7 +167,7 @@ func TestWithSrcAddrIPv4(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkt := New(WithSrcAddr(tt.addr))
+			pkt := mustNewPacket(t, WithSrcAddr(tt.addr))
 			Expect(pkt.SrcAddr).ToNot(BeNil())
 			Expect(pkt.SrcAddr.String()).To(Equal(tt.addr))
 		})
@@ -183,7 +190,7 @@ func TestWithSrcAddrIPv6(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkt := New(WithSrcAddr(tt.addr))
+			pkt := mustNewPacket(t, WithSrcAddr(tt.addr))
 			Expect(pkt.SrcAddr).ToNot(BeNil())
 			Expect(pkt.SrcAddr.String()).To(Equal(tt.expected))
 		})
@@ -206,7 +213,7 @@ func TestWithDstAddrIPv4(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkt := New(WithDstAddr(tt.addr))
+			pkt := mustNewPacket(t, WithDstAddr(tt.addr))
 			Expect(pkt.DstAddr).ToNot(BeNil())
 			Expect(pkt.DstAddr.String()).To(Equal(tt.addr))
 		})
@@ -229,7 +236,7 @@ func TestWithDstAddrIPv6(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkt := New(WithDstAddr(tt.addr))
+			pkt := mustNewPacket(t, WithDstAddr(tt.addr))
 			Expect(pkt.DstAddr).ToNot(BeNil())
 			Expect(pkt.DstAddr.String()).To(Equal(tt.expected))
 		})
@@ -251,11 +258,13 @@ func TestWithInvalidAddr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkt := New(WithSrcAddr(tt.addr))
-			Expect(pkt.SrcAddr).To(BeNil())
+			pkt, err := New(WithSrcAddr(tt.addr))
+			Expect(err).To(HaveOccurred())
+			Expect(pkt).To(BeNil())
 
-			pkt2 := New(WithDstAddr(tt.addr))
-			Expect(pkt2.DstAddr).To(BeNil())
+			pkt2, err := New(WithDstAddr(tt.addr))
+			Expect(err).To(HaveOccurred())
+			Expect(pkt2).To(BeNil())
 		})
 	}
 }
@@ -263,7 +272,7 @@ func TestWithInvalidAddr(t *testing.T) {
 func TestNewMultipleOptions(t *testing.T) {
 	RegisterTestingT(t)
 
-	pkt := New(
+	pkt := mustNewPacket(t,
 		WithProto(6),
 		WithSrcAddr("10.0.0.1"),
 		WithSrcPort(12345),
@@ -281,7 +290,7 @@ func TestNewMultipleOptions(t *testing.T) {
 func TestNewMultipleOptionsIPv6(t *testing.T) {
 	RegisterTestingT(t)
 
-	pkt := New(
+	pkt := mustNewPacket(t,
 		WithProto(17),
 		WithSrcAddr("2001:db8::1"),
 		WithSrcPort(54321),
@@ -299,42 +308,48 @@ func TestNewMultipleOptionsIPv6(t *testing.T) {
 func TestPacketStringIPv4(t *testing.T) {
 	RegisterTestingT(t)
 
+	fullPacket := mustNewPacket(t,
+		WithProto(proto.TCP),
+		WithSrcAddr("10.0.0.1"),
+		WithSrcPort(12345),
+		WithDstAddr("192.168.1.1"),
+		WithDstPort(80),
+	)
+
+	tcpPacket := mustNewPacket(t,
+		WithProto(proto.TCP),
+		WithSrcAddr("172.16.0.1"),
+		WithSrcPort(50000),
+		WithDstAddr("1.1.1.1"),
+		WithDstPort(443),
+	)
+
+	udpPacket := mustNewPacket(t,
+		WithProto(proto.UDP),
+		WithSrcAddr("192.168.0.1"),
+		WithSrcPort(55555),
+		WithDstAddr("8.8.8.8"),
+		WithDstPort(53),
+	)
+
 	tests := []struct {
 		name     string
 		packet   *Packet
 		expected string
 	}{
 		{
-			name: "FullPacket",
-			packet: New(
-				WithProto(proto.TCP),
-				WithSrcAddr("10.0.0.1"),
-				WithSrcPort(12345),
-				WithDstAddr("192.168.1.1"),
-				WithDstPort(80),
-			),
+			name:     "FullPacket",
+			packet:   fullPacket,
 			expected: "tcp{10.0.0.1:12345->192.168.1.1:80}",
 		},
 		{
-			name: "TCPPacket",
-			packet: New(
-				WithProto(proto.TCP),
-				WithSrcAddr("172.16.0.1"),
-				WithSrcPort(50000),
-				WithDstAddr("1.1.1.1"),
-				WithDstPort(443),
-			),
+			name:     "TCPPacket",
+			packet:   tcpPacket,
 			expected: "tcp{172.16.0.1:50000->1.1.1.1:443}",
 		},
 		{
-			name: "UDPPacket",
-			packet: New(
-				WithProto(proto.UDP),
-				WithSrcAddr("192.168.0.1"),
-				WithSrcPort(55555),
-				WithDstAddr("8.8.8.8"),
-				WithDstPort(53),
-			),
+			name:     "UDPPacket",
+			packet:   udpPacket,
 			expected: "udp{192.168.0.1:55555->8.8.8.8:53}",
 		},
 	}
@@ -349,31 +364,35 @@ func TestPacketStringIPv4(t *testing.T) {
 func TestPacketStringIPv6(t *testing.T) {
 	RegisterTestingT(t)
 
+	fullPacket := mustNewPacket(t,
+		WithProto(proto.TCP),
+		WithSrcAddr("2001:db8::1"),
+		WithSrcPort(12345),
+		WithDstAddr("cafe::1"),
+		WithDstPort(80),
+	)
+
+	tcpPacket := mustNewPacket(t,
+		WithProto(proto.TCP),
+		WithSrcAddr("dead:beef::1"),
+		WithSrcPort(44444),
+		WithDstAddr("fe80::1"),
+		WithDstPort(443),
+	)
+
 	tests := []struct {
 		name     string
 		packet   *Packet
 		expected string
 	}{
 		{
-			name: "FullPacket",
-			packet: New(
-				WithProto(proto.TCP),
-				WithSrcAddr("2001:db8::1"),
-				WithSrcPort(12345),
-				WithDstAddr("cafe::1"),
-				WithDstPort(80),
-			),
+			name:     "FullPacket",
+			packet:   fullPacket,
 			expected: "tcp{2001:db8::1:12345->cafe::1:80}",
 		},
 		{
-			name: "TCPPacket",
-			packet: New(
-				WithProto(proto.TCP),
-				WithSrcAddr("dead:beef::1"),
-				WithSrcPort(44444),
-				WithDstAddr("fe80::1"),
-				WithDstPort(443),
-			),
+			name:     "TCPPacket",
+			packet:   tcpPacket,
 			expected: "tcp{dead:beef::1:44444->fe80::1:443}",
 		},
 	}
@@ -388,7 +407,7 @@ func TestPacketStringIPv6(t *testing.T) {
 func TestPacketStringEmptyPacket(t *testing.T) {
 	RegisterTestingT(t)
 
-	pkt := New()
+	pkt := mustNewPacket(t)
 	result := pkt.String()
 	// Empty packet will have nil IPs which will be formatted as <nil>
 	Expect(result).To(Equal("0{<nil>:0-><nil>:0}"))
@@ -398,17 +417,17 @@ func TestPacketStringPartialPacket(t *testing.T) {
 	RegisterTestingT(t)
 
 	// Only protocol
-	pkt1 := New(WithProto(proto.TCP))
+	pkt1 := mustNewPacket(t, WithProto(proto.TCP))
 	result1 := pkt1.String()
 	Expect(result1).To(Equal("tcp{<nil>:0-><nil>:0}"))
 
 	// Only ports
-	pkt2 := New(WithSrcPort(1234), WithDstPort(5678))
+	pkt2 := mustNewPacket(t, WithSrcPort(1234), WithDstPort(5678))
 	result2 := pkt2.String()
 	Expect(result2).To(Equal("0{<nil>:1234-><nil>:5678}"))
 
 	// Only addresses
-	pkt3 := New(WithSrcAddr("10.0.0.1"), WithDstAddr("192.168.1.1"))
+	pkt3 := mustNewPacket(t, WithSrcAddr("10.0.0.1"), WithDstAddr("192.168.1.1"))
 	result3 := pkt3.String()
 	Expect(result3).To(Equal("0{10.0.0.1:0->192.168.1.1:0}"))
 }
@@ -420,8 +439,8 @@ func TestPacketOptionsCanBeReused(t *testing.T) {
 	srcPortOpt := WithSrcPort(80)
 	dstPortOpt := WithDstPort(443)
 
-	pkt1 := New(protoOpt, srcPortOpt, dstPortOpt)
-	pkt2 := New(protoOpt, srcPortOpt, dstPortOpt)
+	pkt1 := mustNewPacket(t, protoOpt, srcPortOpt, dstPortOpt)
+	pkt2 := mustNewPacket(t, protoOpt, srcPortOpt, dstPortOpt)
 
 	Expect(pkt1.Proto).To(Equal(pkt2.Proto))
 	Expect(pkt1.SrcPort).To(Equal(pkt2.SrcPort))
@@ -431,7 +450,7 @@ func TestPacketOptionsCanBeReused(t *testing.T) {
 func TestPacketOptionsOrderIndependent(t *testing.T) {
 	RegisterTestingT(t)
 
-	pkt1 := New(
+	pkt1 := mustNewPacket(t,
 		WithProto(proto.TCP),
 		WithSrcAddr("10.0.0.1"),
 		WithSrcPort(80),
@@ -439,7 +458,7 @@ func TestPacketOptionsOrderIndependent(t *testing.T) {
 		WithDstPort(443),
 	)
 
-	pkt2 := New(
+	pkt2 := mustNewPacket(t,
 		WithDstPort(443),
 		WithDstAddr("192.168.1.1"),
 		WithSrcPort(80),
