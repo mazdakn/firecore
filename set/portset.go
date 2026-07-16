@@ -67,11 +67,18 @@ func (p *PortSet) Match(v any) bool {
 	if !ok {
 		return false
 	}
-	if p.Exists(portNum) {
+	return p.MatchPort(portNum)
+}
+
+// MatchPort reports whether port is present in the set or falls within any
+// stored range. Unlike Match, it takes a concrete uint16 rather than any,
+// letting callers on the packet-matching hot path avoid interface-boxing it.
+func (p *PortSet) MatchPort(port uint16) bool {
+	if p.Exists(port) {
 		return true
 	}
 	for _, r := range p.ranges {
-		if portNum >= r.start && portNum <= r.end {
+		if port >= r.start && port <= r.end {
 			return true
 		}
 	}

@@ -60,6 +60,13 @@ func (s *IfaceSet) Match(v any) bool {
 	if !ok {
 		return false
 	}
+	return s.MatchIface(iface)
+}
+
+// MatchIface reports whether iface is present in the set. Unlike Match, it
+// takes a concrete string rather than any, letting callers on the
+// packet-matching hot path avoid interface-boxing it.
+func (s *IfaceSet) MatchIface(iface string) bool {
 	return s.Exists(iface)
 }
 

@@ -65,6 +65,13 @@ func (s *IPPortSet) Match(v any) bool {
 	if !ok {
 		return false
 	}
+	return s.MatchIPPort(tuple)
+}
+
+// MatchIPPort reports whether tuple is contained in the set. Unlike Match, it
+// takes a concrete IPPortTuple rather than any, letting callers on the
+// packet-matching hot path avoid interface-boxing it.
+func (s *IPPortSet) MatchIPPort(tuple IPPortTuple) bool {
 	for _, member := range s.members {
 		if !member.net.Contains(tuple.IP) {
 			continue

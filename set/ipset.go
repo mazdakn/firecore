@@ -75,6 +75,13 @@ func (s *IPSet) Match(v any) bool {
 	if !ok {
 		return false
 	}
+	return s.MatchIP(ip)
+}
+
+// MatchIP reports whether ip is contained in any network in the set. Unlike
+// Match, it takes a concrete net.IP rather than any, letting callers on the
+// packet-matching hot path avoid interface-boxing it.
+func (s *IPSet) MatchIP(ip net.IP) bool {
 	for _, ipnet := range s.nets {
 		if ipnet.Contains(ip) {
 			return true
