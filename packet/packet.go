@@ -81,6 +81,17 @@ func WithPayload(payload []byte) PacketOption {
 	}
 }
 
+// WithSize sets the packet's full on-the-wire size, including headers. This
+// is distinct from Payload, which callers may populate with only a slice of
+// the packet's bytes (e.g. for payload matching) that does not reflect the
+// packet's true size.
+func WithSize(size uint32) PacketOption {
+	return func(p *Packet) error {
+		p.Size = size
+		return nil
+	}
+}
+
 func New(opts ...PacketOption) (*Packet, error) {
 	p := Packet{
 		Metadata: NewMetadata(),
@@ -106,6 +117,10 @@ type Packet struct {
 	DstPort uint16
 
 	Payload []byte
+	// Size is the packet's full on-the-wire size, including headers. Unlike
+	// len(Payload), it reflects the true packet size even when Payload holds
+	// only a partial slice of the packet's bytes.
+	Size uint32
 
 	Metadata Metadata
 }

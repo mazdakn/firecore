@@ -448,6 +448,46 @@ func TestRulePacketCounterConcurrency(t *testing.T) {
 	Expect(rule.PacketCount()).To(Equal(expectedCount))
 }
 
+func TestRuleByteCounter(t *testing.T) {
+	RegisterTestingT(t)
+
+	rule := mustNew(WithProto(proto.UDP), WithDstPort(53))
+	pktMatch := mustNewPacket(t,
+		packet.WithSrcAddr("10.10.10.1"), packet.WithSrcPort(55555), packet.WithProto(proto.UDP),
+		packet.WithDstAddr("1.1.1.1"), packet.WithDstPort(53),
+		packet.WithPayload([]byte("hi")), packet.WithSize(74),
+	)
+	pktNoMatch := mustNewPacket(t,
+		packet.WithSrcAddr("10.10.10.1"), packet.WithSrcPort(55555), packet.WithProto(proto.TCP),
+		packet.WithDstAddr("1.1.1.1"), packet.WithDstPort(80),
+		packet.WithPayload([]byte("nope")), packet.WithSize(100),
+	)
+
+	// Initially, byte count should be 0
+	Expect(rule.ByteCount()).To(Equal(uint64(0)))
+
+	// Match a packet, byte count should increase by its full size, not its
+	// (shorter, or possibly absent) payload length
+	Expect(rule.Match(pktMatch)).To(BeTrue())
+	Expect(rule.ByteCount()).To(Equal(uint64(74)))
+
+	// Match another packet, byte count should accumulate
+	Expect(rule.Match(pktMatch)).To(BeTrue())
+	Expect(rule.ByteCount()).To(Equal(uint64(148)))
+
+	// Non-matching packet should not add to the byte count
+	Expect(rule.Match(pktNoMatch)).To(BeFalse())
+	Expect(rule.ByteCount()).To(Equal(uint64(148)))
+
+	// Reset counter
+	rule.ResetByteCount()
+	Expect(rule.ByteCount()).To(Equal(uint64(0)))
+
+	// Match after reset should accumulate from 0
+	Expect(rule.Match(pktMatch)).To(BeTrue())
+	Expect(rule.ByteCount()).To(Equal(uint64(74)))
+}
+
 func TestRuleWithName(t *testing.T) {
 	RegisterTestingT(t)
 

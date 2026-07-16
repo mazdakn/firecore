@@ -24,6 +24,27 @@ func TestCounterIncrement(t *testing.T) {
 	Expect(c.Get()).To(Equal(uint64(2)))
 }
 
+func TestCounterAdd(t *testing.T) {
+	RegisterTestingT(t)
+
+	c := &Counter{}
+
+	// Initially, counter should be 0
+	Expect(c.Get()).To(Equal(uint64(0)))
+
+	// Add a value
+	c.Add(42)
+	Expect(c.Get()).To(Equal(uint64(42)))
+
+	// Add again, accumulating
+	c.Add(8)
+	Expect(c.Get()).To(Equal(uint64(50)))
+
+	// Adding 0 is a no-op
+	c.Add(0)
+	Expect(c.Get()).To(Equal(uint64(50)))
+}
+
 func TestCounterReset(t *testing.T) {
 	RegisterTestingT(t)
 

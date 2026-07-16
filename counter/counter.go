@@ -16,6 +16,11 @@ func (c *Counter) Increment() {
 	c.value.Add(1)
 }
 
+// Add atomically increments the counter by n
+func (c *Counter) Add(n uint64) {
+	c.value.Add(n)
+}
+
 // Get atomically returns the current counter value
 func (c *Counter) Get() uint64 {
 	return c.value.Load()

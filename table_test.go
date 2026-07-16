@@ -164,6 +164,31 @@ func TestTableMatchNoRuleAndDefaultPassReturnsNoMatchVerdict(t *testing.T) {
 	Expect(result.Trace[0].Action).To(Equal(Pass))
 }
 
+func TestTableMatchDefaultRuleTracksByteCount(t *testing.T) {
+	RegisterTestingT(t)
+
+	tbl := newTable("test", 0, Pass)
+	chain := newChain("main")
+	Expect(tbl.AddChain(chain)).To(Succeed())
+
+	pkt := mustNewPacket(t,
+		packet.WithSrcAddr("10.0.0.1"),
+		packet.WithDstAddr("1.1.1.1"),
+		packet.WithProto(6),
+		packet.WithDstPort(80),
+		packet.WithPayload([]byte("hello")), packet.WithSize(74),
+	)
+
+	Expect(tbl.DefaultRule.ByteCount()).To(Equal(uint64(0)))
+
+	result := &Result{}
+	_, err := tbl.Match(pkt, result)
+
+	Expect(err).NotTo(HaveOccurred())
+	Expect(tbl.DefaultRule.PacketCount()).To(Equal(uint64(1)))
+	Expect(tbl.DefaultRule.ByteCount()).To(Equal(uint64(74)))
+}
+
 func TestTableMatchNilDefaultRuleReturnsNoMatch(t *testing.T) {
 	RegisterTestingT(t)
 

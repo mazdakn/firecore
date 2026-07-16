@@ -79,6 +79,7 @@ func TestNewEmpty(t *testing.T) {
 	Expect(pkt.SrcPort).To(Equal(uint16(0)))
 	Expect(pkt.DstPort).To(Equal(uint16(0)))
 	Expect(pkt.Payload).To(BeNil())
+	Expect(pkt.Size).To(Equal(uint32(0)))
 }
 
 func TestWithPayload(t *testing.T) {
@@ -91,6 +92,23 @@ func TestWithPayload(t *testing.T) {
 
 	original[0] = 'P'
 	Expect(pkt.Payload).To(Equal([]byte("GET /healthz HTTP/1.1")))
+}
+
+func TestWithSize(t *testing.T) {
+	RegisterTestingT(t)
+
+	pkt := mustNewPacket(t, WithSize(1500))
+	Expect(pkt.Size).To(Equal(uint32(1500)))
+}
+
+func TestWithSizeIndependentOfPayload(t *testing.T) {
+	RegisterTestingT(t)
+
+	// Size reflects the full on-the-wire packet, which may be larger than
+	// whatever slice of bytes Payload was populated with.
+	pkt := mustNewPacket(t, WithPayload([]byte("hi")), WithSize(1500))
+	Expect(pkt.Payload).To(Equal([]byte("hi")))
+	Expect(pkt.Size).To(Equal(uint32(1500)))
 }
 
 func TestWithProto(t *testing.T) {

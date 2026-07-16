@@ -496,6 +496,7 @@ func WithNotDstIface(iface string) RuleOption {
 func NewRule(opts ...RuleOption) (*Rule, error) {
 	r := Rule{
 		packetCount: counter.New(),
+		byteCount:   counter.New(),
 	}
 	for _, o := range opts {
 		if o == nil {
@@ -517,6 +518,7 @@ type Rule struct {
 	Matchers []matcher.Matcher
 
 	packetCount *counter.Counter
+	byteCount   *counter.Counter
 }
 
 func (r *Rule) Match(pkt *packet.Packet) bool {
@@ -535,8 +537,9 @@ func (r *Rule) MatchWithConntrackState(pkt *packet.Packet, state conntrack.State
 			return false
 		}
 	}
-	// All conditions passed - increment packet counter
+	// All conditions passed - increment packet and byte counters
 	r.packetCount.Increment()
+	r.byteCount.Add(uint64(pkt.Size))
 	return true
 }
 
@@ -550,4 +553,16 @@ func (r *Rule) IncrementPacketCount() {
 
 func (r *Rule) ResetPacketCount() {
 	r.packetCount.Reset()
+}
+
+func (r *Rule) ByteCount() uint64 {
+	return r.byteCount.Get()
+}
+
+func (r *Rule) AddByteCount(n uint64) {
+	r.byteCount.Add(n)
+}
+
+func (r *Rule) ResetByteCount() {
+	r.byteCount.Reset()
 }

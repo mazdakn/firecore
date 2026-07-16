@@ -160,12 +160,13 @@ func (t *Table) Match(pkt *packet.Packet, result *Result) (bool, error) {
 		}
 	}
 	// Entry chain fell through without a verdict.
-	return t.MatchDefaultRule(result), nil
+	return t.MatchDefaultRule(pkt, result), nil
 }
 
-func (t *Table) MatchDefaultRule(result *Result) bool {
+func (t *Table) MatchDefaultRule(pkt *packet.Packet, result *Result) bool {
 	if t.DefaultRule != nil {
 		t.DefaultRule.IncrementPacketCount()
+		t.DefaultRule.AddByteCount(uint64(pkt.Size))
 		result.Trace = append(result.Trace, t.DefaultRule)
 		if t.DefaultRule.Action.IsTerminal() {
 			result.Verdict = &t.DefaultRule.Action
