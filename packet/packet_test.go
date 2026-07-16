@@ -8,7 +8,7 @@ import (
 	"github.com/mazdakn/firecore/proto"
 )
 
-func mustNewPacket(t testing.TB, opts ...PacketOption) *Packet {
+func mustNewPacket(t testing.TB, opts ...Option) *Packet {
 	t.Helper()
 	pkt, err := New(opts...)
 	Expect(err).ToNot(HaveOccurred())

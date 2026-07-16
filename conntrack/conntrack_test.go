@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func mustNewPacket(t testing.TB, opts ...packet.PacketOption) *packet.Packet {
+func mustNewPacket(t testing.TB, opts ...packet.Option) *packet.Packet {
 	t.Helper()
 	pkt, err := packet.New(opts...)
 	Expect(err).ToNot(HaveOccurred())

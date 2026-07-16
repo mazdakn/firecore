@@ -8,37 +8,37 @@ import (
 	"github.com/mazdakn/firecore/proto"
 )
 
-type PacketOption func(*Packet) error
+type Option func(*Packet) error
 
-func WithName(name string) PacketOption {
+func WithName(name string) Option {
 	return func(p *Packet) error {
 		p.Metadata.Name = name
 		return nil
 	}
 }
 
-func WithProto(p proto.Proto) PacketOption {
+func WithProto(p proto.Proto) Option {
 	return func(pkt *Packet) error {
 		pkt.Proto = p
 		return nil
 	}
 }
 
-func WithSrcPort(port uint16) PacketOption {
+func WithSrcPort(port uint16) Option {
 	return func(p *Packet) error {
 		p.SrcPort = port
 		return nil
 	}
 }
 
-func WithDstPort(port uint16) PacketOption {
+func WithDstPort(port uint16) Option {
 	return func(p *Packet) error {
 		p.DstPort = port
 		return nil
 	}
 }
 
-func WithSrcAddr(addr string) PacketOption {
+func WithSrcAddr(addr string) Option {
 	return func(p *Packet) error {
 		ip := net.ParseIP(addr)
 		if ip == nil {
@@ -49,7 +49,7 @@ func WithSrcAddr(addr string) PacketOption {
 	}
 }
 
-func WithDstAddr(addr string) PacketOption {
+func WithDstAddr(addr string) Option {
 	return func(p *Packet) error {
 		ip := net.ParseIP(addr)
 		if ip == nil {
@@ -60,21 +60,21 @@ func WithDstAddr(addr string) PacketOption {
 	}
 }
 
-func WithIngressIface(iface string) PacketOption {
+func WithIngressIface(iface string) Option {
 	return func(p *Packet) error {
 		p.Metadata.IngressIface = iface
 		return nil
 	}
 }
 
-func WithEgressIface(iface string) PacketOption {
+func WithEgressIface(iface string) Option {
 	return func(p *Packet) error {
 		p.Metadata.EgressIface = iface
 		return nil
 	}
 }
 
-func WithPayload(payload []byte) PacketOption {
+func WithPayload(payload []byte) Option {
 	return func(p *Packet) error {
 		p.Payload = bytes.Clone(payload)
 		return nil
@@ -85,14 +85,14 @@ func WithPayload(payload []byte) PacketOption {
 // is distinct from Payload, which callers may populate with only a slice of
 // the packet's bytes (e.g. for payload matching) that does not reflect the
 // packet's true size.
-func WithSize(size uint32) PacketOption {
+func WithSize(size uint32) Option {
 	return func(p *Packet) error {
 		p.Size = size
 		return nil
 	}
 }
 
-func New(opts ...PacketOption) (*Packet, error) {
+func New(opts ...Option) (*Packet, error) {
 	p := Packet{
 		Metadata: NewMetadata(),
 	}

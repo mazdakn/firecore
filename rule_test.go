@@ -19,7 +19,7 @@ func mustNew(opts ...RuleOption) *Rule {
 	return r
 }
 
-func mustNewPacket(t testing.TB, opts ...packet.PacketOption) *packet.Packet {
+func mustNewPacket(t testing.TB, opts ...packet.Option) *packet.Packet {
 	t.Helper()
 	pkt, err := packet.New(opts...)
 	Expect(err).ToNot(HaveOccurred())

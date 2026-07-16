@@ -45,7 +45,7 @@ func (m *oldNotSrcNetMatcher) Match(pkt *packet.Packet, _ conntrack.State) (bool
 	return !m.Nets.Match(pkt.SrcAddr), nil
 }
 
-func mustPacket(b *testing.B, opts ...packet.PacketOption) *packet.Packet {
+func mustPacket(b *testing.B, opts ...packet.Option) *packet.Packet {
 	b.Helper()
 	pkt, err := packet.New(opts...)
 	if err != nil {
