@@ -7,38 +7,58 @@ import (
 	"strings"
 )
 
-// IPSet is a Set of net.IPNet CIDR blocks.
+// IPSet is a Set of net.IPNet CIDR blocks. Networks are stored in a slice
+// rather than keyed by CIDR string, since MatchIP runs on the packet-matching
+// hot path and a slice scan avoids Go map iteration's per-element bucket-walk
+// overhead; Add/Delete are config-time operations, so the linear dedup scan
+// they do instead is not a concern.
 type IPSet struct {
-	nets map[string]*net.IPNet
+	nets []*net.IPNet
 }
 
 // NewIPSet returns an empty IPSet.
 func NewIPSet() *IPSet {
-	return &IPSet{
-		nets: make(map[string]*net.IPNet),
+	return &IPSet{}
+}
+
+// indexOfNet returns the index of the network in s.nets whose CIDR string
+// matches ipnet's, or -1 if none does.
+func (s *IPSet) indexOfNet(ipnet *net.IPNet) int {
+	cidr := ipnet.String()
+	for i, existing := range s.nets {
+		if existing.String() == cidr {
+			return i
+		}
 	}
+	return -1
 }
 
 // Add inserts a value into the set. v must be either a *net.IPNet or a string
 // in CIDR notation. It implements the Set interface.
 func (s *IPSet) Add(v any) error {
+	var ipnet *net.IPNet
 	switch val := v.(type) {
 	case *net.IPNet:
 		if err := validateIPNet(val); err != nil {
 			return err
 		}
-		s.nets[val.String()] = val
-		return nil
+		ipnet = val
 	case string:
-		_, ipnet, err := net.ParseCIDR(val)
+		_, parsed, err := net.ParseCIDR(val)
 		if err != nil {
 			return fmt.Errorf("invalid CIDR %q: %w", val, err)
 		}
-		s.nets[ipnet.String()] = ipnet
-		return nil
+		ipnet = parsed
 	default:
 		return fmt.Errorf("IPSet.Add: unsupported type %T", v)
 	}
+
+	if i := s.indexOfNet(ipnet); i >= 0 {
+		s.nets[i] = ipnet
+		return nil
+	}
+	s.nets = append(s.nets, ipnet)
+	return nil
 }
 
 // validateIPNet reports whether ipnet is well-formed: non-nil with a non-nil
@@ -65,7 +85,9 @@ func validateIPNet(ipnet *net.IPNet) error {
 
 // Delete removes ipnet from the set.
 func (s *IPSet) Delete(ipnet *net.IPNet) {
-	delete(s.nets, ipnet.String())
+	if i := s.indexOfNet(ipnet); i >= 0 {
+		s.nets = append(s.nets[:i], s.nets[i+1:]...)
+	}
 }
 
 // Match reports whether v is contained in any network in the set.
@@ -99,8 +121,8 @@ func (s *IPSet) Type() Type {
 // A multi-network set renders as a sorted brace-enclosed list (e.g. "{10.0.0.0/8,192.168.0.0/16}").
 func (s *IPSet) String() string {
 	cidrs := make([]string, 0, len(s.nets))
-	for cidr := range s.nets {
-		cidrs = append(cidrs, cidr)
+	for _, ipnet := range s.nets {
+		cidrs = append(cidrs, ipnet.String())
 	}
 	sort.Strings(cidrs)
 	if len(cidrs) == 1 {
