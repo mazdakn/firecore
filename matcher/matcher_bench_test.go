@@ -76,7 +76,7 @@ func BenchmarkSrcPortMatch_New(b *testing.B) {
 	pkt := mustPacket(b, packet.WithSrcPort(443))
 
 	for b.Loop() {
-		_, _ = m.Match(pkt, conntrack.StateNew)
+		_ = m.Match(pkt, conntrack.StateNew)
 	}
 }
 
@@ -100,7 +100,7 @@ func BenchmarkNotSrcPortMatch_New(b *testing.B) {
 	pkt := mustPacket(b, packet.WithSrcPort(443))
 
 	for b.Loop() {
-		_, _ = m.Match(pkt, conntrack.StateNew)
+		_ = m.Match(pkt, conntrack.StateNew)
 	}
 }
 
@@ -124,7 +124,7 @@ func BenchmarkSrcNetMatch_New(b *testing.B) {
 	pkt := mustPacket(b, packet.WithSrcAddr("10.1.2.3"))
 
 	for b.Loop() {
-		_, _ = m.Match(pkt, conntrack.StateNew)
+		_ = m.Match(pkt, conntrack.StateNew)
 	}
 }
 
@@ -146,6 +146,6 @@ func BenchmarkNotSrcNetMatch_New(b *testing.B) {
 	pkt := mustPacket(b, packet.WithSrcAddr("10.1.2.3"))
 
 	for b.Loop() {
-		_, _ = m.Match(pkt, conntrack.StateNew)
+		_ = m.Match(pkt, conntrack.StateNew)
 	}
 }

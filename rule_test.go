@@ -513,7 +513,8 @@ func TestNegatedRuleMatch(t *testing.T) {
 func TestNegatedRuleConfig(t *testing.T) {
 	RegisterTestingT(t)
 
-	// Valid negated rule — negated options produce dedicated Not* Matcher types
+	// Valid negated rule — negated options wrap a shared matcher type in
+	// matcher.Negated rather than using a dedicated Not* type.
 	rule := mustNew(
 		WithAction(Accept),
 		WithNotProto(proto.TCP),
@@ -522,26 +523,27 @@ func TestNegatedRuleConfig(t *testing.T) {
 		WithNotSrcNet("10.0.0.0/8"),
 		WithNotDstNet("192.168.0.0/16"),
 	)
-	_, ok := findMatcher[*matcher.NotProtoMatcher](rule)
+	_, ok := findMatcher[*matcher.ProtoMatcher](rule, true)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*matcher.NotSrcPortMatcher](rule)
+	_, ok = findSrcSet(rule, true, set.TypePort)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*matcher.NotDstPortMatcher](rule)
+	_, ok = findDstSet(rule, true, set.TypePort)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*matcher.NotSrcNetMatcher](rule)
+	_, ok = findSrcSet(rule, true, set.TypeIP)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*matcher.NotDstNetMatcher](rule)
+	_, ok = findDstSet(rule, true, set.TypeIP)
 	Expect(ok).To(BeTrue())
-	// Positive matchers should be absent when only negated values are specified
-	_, ok = findMatcher[*matcher.ProtoMatcher](rule)
+	// Positive (non-negated) matchers should be absent when only negated
+	// values are specified.
+	_, ok = findMatcher[*matcher.ProtoMatcher](rule, false)
 	Expect(ok).To(BeFalse())
-	_, ok = findMatcher[*matcher.SrcPortMatcher](rule)
+	_, ok = findSrcSet(rule, false, set.TypePort)
 	Expect(ok).To(BeFalse())
-	_, ok = findMatcher[*matcher.DstPortMatcher](rule)
+	_, ok = findDstSet(rule, false, set.TypePort)
 	Expect(ok).To(BeFalse())
-	_, ok = findMatcher[*matcher.SrcNetMatcher](rule)
+	_, ok = findSrcSet(rule, false, set.TypeIP)
 	Expect(ok).To(BeFalse())
-	_, ok = findMatcher[*matcher.DstNetMatcher](rule)
+	_, ok = findDstSet(rule, false, set.TypeIP)
 	Expect(ok).To(BeFalse())
 
 	// Positive and negated matchers can be combined on the same rule
@@ -558,25 +560,25 @@ func TestNegatedRuleConfig(t *testing.T) {
 		WithDstNet("1.1.1.0/24"),
 		WithNotDstNet("1.1.1.100/32"),
 	)
-	_, ok = findMatcher[*matcher.ProtoMatcher](ruleCombined)
+	_, ok = findMatcher[*matcher.ProtoMatcher](ruleCombined, false)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*matcher.NotProtoMatcher](ruleCombined)
+	_, ok = findMatcher[*matcher.ProtoMatcher](ruleCombined, true)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*matcher.SrcPortMatcher](ruleCombined)
+	_, ok = findSrcSet(ruleCombined, false, set.TypePort)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*matcher.NotSrcPortMatcher](ruleCombined)
+	_, ok = findSrcSet(ruleCombined, true, set.TypePort)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*matcher.DstPortMatcher](ruleCombined)
+	_, ok = findDstSet(ruleCombined, false, set.TypePort)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*matcher.NotDstPortMatcher](ruleCombined)
+	_, ok = findDstSet(ruleCombined, true, set.TypePort)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*matcher.SrcNetMatcher](ruleCombined)
+	_, ok = findSrcSet(ruleCombined, false, set.TypeIP)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*matcher.NotSrcNetMatcher](ruleCombined)
+	_, ok = findSrcSet(ruleCombined, true, set.TypeIP)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*matcher.DstNetMatcher](ruleCombined)
+	_, ok = findDstSet(ruleCombined, false, set.TypeIP)
 	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*matcher.NotDstNetMatcher](ruleCombined)
+	_, ok = findDstSet(ruleCombined, true, set.TypeIP)
 	Expect(ok).To(BeTrue())
 }
 

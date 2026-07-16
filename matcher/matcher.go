@@ -14,7 +14,7 @@ import (
 // connection-tracking state it was classified as. A Rule matches only when
 // every one of its Matchers matches.
 type Matcher interface {
-	Match(pkt *packet.Packet, state conntrack.State) (bool, error)
+	Match(pkt *packet.Packet, state conntrack.State) bool
 }
 
 // Negated wraps a Matcher and inverts its result. It is the single negation
@@ -29,12 +29,8 @@ func Negate(m Matcher) Matcher {
 	return Negated{m}
 }
 
-func (n Negated) Match(pkt *packet.Packet, state conntrack.State) (bool, error) {
-	ok, err := n.Matcher.Match(pkt, state)
-	if err != nil {
-		return false, err
-	}
-	return !ok, nil
+func (n Negated) Match(pkt *packet.Packet, state conntrack.State) bool {
+	return !n.Matcher.Match(pkt, state)
 }
 
 // matchNamedSet reports whether s matches the value corresponding to its
@@ -68,8 +64,8 @@ type ProtoMatcher struct {
 	Protos *set.ProtoSet
 }
 
-func (m *ProtoMatcher) Match(pkt *packet.Packet, _ conntrack.State) (bool, error) {
-	return m.Protos.Match(pkt.Proto), nil
+func (m *ProtoMatcher) Match(pkt *packet.Packet, _ conntrack.State) bool {
+	return m.Protos.Match(pkt.Proto)
 }
 
 // SrcSetMatcher matches packets whose source-derived value (address, port,
@@ -78,8 +74,8 @@ type SrcSetMatcher struct {
 	Set set.Set
 }
 
-func (m *SrcSetMatcher) Match(pkt *packet.Packet, _ conntrack.State) (bool, error) {
-	return matchNamedSet(m.Set, pkt.SrcAddr, pkt.SrcPort, pkt.Metadata.IngressIface), nil
+func (m *SrcSetMatcher) Match(pkt *packet.Packet, _ conntrack.State) bool {
+	return matchNamedSet(m.Set, pkt.SrcAddr, pkt.SrcPort, pkt.Metadata.IngressIface)
 }
 
 // DstSetMatcher matches packets whose destination-derived value (address,
@@ -88,8 +84,8 @@ type DstSetMatcher struct {
 	Set set.Set
 }
 
-func (m *DstSetMatcher) Match(pkt *packet.Packet, _ conntrack.State) (bool, error) {
-	return matchNamedSet(m.Set, pkt.DstAddr, pkt.DstPort, pkt.Metadata.EgressIface), nil
+func (m *DstSetMatcher) Match(pkt *packet.Packet, _ conntrack.State) bool {
+	return matchNamedSet(m.Set, pkt.DstAddr, pkt.DstPort, pkt.Metadata.EgressIface)
 }
 
 // ConnStateMatcher matches packets whose connection-tracking state is in States.
@@ -97,8 +93,8 @@ type ConnStateMatcher struct {
 	States []conntrack.State
 }
 
-func (m *ConnStateMatcher) Match(_ *packet.Packet, state conntrack.State) (bool, error) {
-	return slices.Contains(m.States, state), nil
+func (m *ConnStateMatcher) Match(_ *packet.Packet, state conntrack.State) bool {
+	return slices.Contains(m.States, state)
 }
 
 // PayloadMatcher matches packets whose payload matches Payload's pattern.
@@ -106,6 +102,6 @@ type PayloadMatcher struct {
 	Payload *payload.Matcher
 }
 
-func (m *PayloadMatcher) Match(pkt *packet.Packet, _ conntrack.State) (bool, error) {
-	return m.Payload.Match(pkt.Payload), nil
+func (m *PayloadMatcher) Match(pkt *packet.Packet, _ conntrack.State) bool {
+	return m.Payload.Match(pkt.Payload)
 }
