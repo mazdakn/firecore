@@ -83,6 +83,32 @@ func validateIPNet(ipnet *net.IPNet) error {
 	return nil
 }
 
+// Delete removes a value from the set. v accepts the same types as Add: a
+// *net.IPNet or a string in CIDR notation. It implements the Set interface.
+func (s *IPSet) Delete(v any) error {
+	var ipnet *net.IPNet
+	switch val := v.(type) {
+	case *net.IPNet:
+		if err := validateIPNet(val); err != nil {
+			return err
+		}
+		ipnet = val
+	case string:
+		_, parsed, err := net.ParseCIDR(val)
+		if err != nil {
+			return fmt.Errorf("invalid CIDR %q: %w", val, err)
+		}
+		ipnet = parsed
+	default:
+		return fmt.Errorf("IPSet.Delete: unsupported type %T", v)
+	}
+
+	if i := s.indexOfNet(ipnet); i >= 0 {
+		s.nets = append(s.nets[:i], s.nets[i+1:]...)
+	}
+	return nil
+}
+
 // Match reports whether v is contained in any network in the set.
 // v must be a net.IP. It implements the Set interface.
 func (s *IPSet) Match(v any) bool {

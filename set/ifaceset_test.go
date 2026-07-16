@@ -23,6 +23,26 @@ func TestIfaceSetAddUnsupportedType(t *testing.T) {
 	Expect(s.Add(42)).To(HaveOccurred())
 }
 
+func TestIfaceSetDelete(t *testing.T) {
+	RegisterTestingT(t)
+
+	s := NewIfaceSet()
+	Expect(s.Add("eth0")).To(Succeed())
+	Expect(s.Add("eth1")).To(Succeed())
+	Expect(s.Match("eth0")).To(BeTrue())
+
+	Expect(s.Delete("eth0")).To(Succeed())
+	Expect(s.Match("eth0")).To(BeFalse())
+	Expect(s.Match("eth1")).To(BeTrue())
+}
+
+func TestIfaceSetDeleteUnsupportedType(t *testing.T) {
+	RegisterTestingT(t)
+
+	s := NewIfaceSet()
+	Expect(s.Delete(42)).To(HaveOccurred())
+}
+
 func TestIfaceSetMatch(t *testing.T) {
 	RegisterTestingT(t)
 

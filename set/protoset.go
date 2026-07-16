@@ -37,6 +37,26 @@ func (ps *ProtoSet) Add(v any) error {
 	}
 }
 
+// Delete removes a value from the set. v accepts the same types as Add: a
+// proto.Proto value or a string protocol name/number. It implements the Set
+// interface.
+func (ps *ProtoSet) Delete(v any) error {
+	switch val := v.(type) {
+	case proto.Proto:
+		ps.set.Delete(val)
+		return nil
+	case string:
+		p, err := proto.Parse(val)
+		if err != nil {
+			return fmt.Errorf("invalid protocol %q: %w", val, err)
+		}
+		ps.set.Delete(*p)
+		return nil
+	default:
+		return fmt.Errorf("ProtoSet.Delete: unsupported type %T", v)
+	}
+}
+
 // Match reports whether v is present in the set. v must be a proto.Proto
 // value. It implements the Set interface.
 func (ps *ProtoSet) Match(v any) bool {

@@ -53,6 +53,18 @@ func validateIfaceName(name string) error {
 	return nil
 }
 
+// Delete removes a value from the set. v must be a string interface name. It
+// implements the Set interface.
+func (s *IfaceSet) Delete(v any) error {
+	switch val := v.(type) {
+	case string:
+		s.set.Delete(val)
+		return nil
+	default:
+		return fmt.Errorf("IfaceSet.Delete: unsupported type %T", v)
+	}
+}
+
 // Match reports whether v is present in the set. v must be a string interface
 // name. It implements the Set interface.
 func (s *IfaceSet) Match(v any) bool {

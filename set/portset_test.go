@@ -54,9 +54,51 @@ func TestPortSetDelete(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(ps.Match(uint16(80))).To(BeTrue())
 
-	ps.Delete(uint16(80))
+	Expect(ps.Delete(uint16(80))).To(Succeed())
 	Expect(ps.Match(uint16(80))).To(BeFalse())
 	Expect(ps.Match(uint16(443))).To(BeTrue())
+}
+
+func TestPortSetDeleteRange(t *testing.T) {
+	RegisterTestingT(t)
+
+	ps := NewPortSet()
+	Expect(ps.Add(uint16(80))).To(Succeed())
+	Expect(ps.Add("1024-65535")).To(Succeed())
+	Expect(ps.Match(uint16(8080))).To(BeTrue())
+
+	Expect(ps.Delete(port.Port{Number: 1024, End: 65535})).To(Succeed())
+	Expect(ps.Match(uint16(8080))).To(BeFalse())
+	Expect(ps.Match(uint16(80))).To(BeTrue())
+}
+
+func TestPortSetDeleteRangeString(t *testing.T) {
+	RegisterTestingT(t)
+
+	ps := NewPortSet()
+	Expect(ps.Add("1024-65535")).To(Succeed())
+	Expect(ps.Match(uint16(8080))).To(BeTrue())
+
+	Expect(ps.Delete("1024-65535")).To(Succeed())
+	Expect(ps.Match(uint16(8080))).To(BeFalse())
+}
+
+func TestPortSetDeleteUnsupportedType(t *testing.T) {
+	RegisterTestingT(t)
+
+	ps := NewPortSet()
+	Expect(ps.Delete(3.14)).To(HaveOccurred())
+}
+
+func TestPortSetDeleteMissing(t *testing.T) {
+	RegisterTestingT(t)
+
+	ps := NewPortSet()
+	Expect(ps.Add(uint16(80))).To(Succeed())
+
+	// Deleting a value that was never added is a no-op, not an error.
+	Expect(ps.Delete(uint16(443))).To(Succeed())
+	Expect(ps.Match(uint16(80))).To(BeTrue())
 }
 
 func TestPortSetMatch(t *testing.T) {

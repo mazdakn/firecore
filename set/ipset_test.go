@@ -48,6 +48,42 @@ func TestIPSetAddZeroPrefixIPNet(t *testing.T) {
 	Expect(s.Match(net.ParseIP("203.0.113.1"))).To(BeTrue())
 }
 
+func TestIPSetDelete(t *testing.T) {
+	RegisterTestingT(t)
+
+	s := NewIPSet()
+	_, net1, err := net.ParseCIDR("10.0.0.0/8")
+	Expect(err).ToNot(HaveOccurred())
+	_, net2, err := net.ParseCIDR("192.168.0.0/16")
+	Expect(err).ToNot(HaveOccurred())
+	Expect(s.Add(net1)).To(Succeed())
+	Expect(s.Add(net2)).To(Succeed())
+	Expect(s.Match(net.ParseIP("10.1.2.3"))).To(BeTrue())
+
+	Expect(s.Delete(net1)).To(Succeed())
+	Expect(s.Match(net.ParseIP("10.1.2.3"))).To(BeFalse())
+	Expect(s.Match(net.ParseIP("192.168.1.1"))).To(BeTrue())
+}
+
+func TestIPSetDeleteString(t *testing.T) {
+	RegisterTestingT(t)
+
+	s := NewIPSet()
+	Expect(s.Add("10.0.0.0/8")).To(Succeed())
+	Expect(s.Match(net.ParseIP("10.1.2.3"))).To(BeTrue())
+
+	Expect(s.Delete("10.0.0.0/8")).To(Succeed())
+	Expect(s.Match(net.ParseIP("10.1.2.3"))).To(BeFalse())
+}
+
+func TestIPSetDeleteInvalid(t *testing.T) {
+	RegisterTestingT(t)
+
+	s := NewIPSet()
+	Expect(s.Delete("not-a-cidr")).To(HaveOccurred())
+	Expect(s.Delete(42)).To(HaveOccurred())
+}
+
 func TestIPSetMatch(t *testing.T) {
 	RegisterTestingT(t)
 

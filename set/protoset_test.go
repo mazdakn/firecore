@@ -30,9 +30,34 @@ func TestProtoSetDelete(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(ps.Match(proto.TCP)).To(BeTrue())
 
-	ps.Delete(proto.TCP)
+	Expect(ps.Delete(proto.TCP)).To(Succeed())
 	Expect(ps.Match(proto.TCP)).To(BeFalse())
 	Expect(ps.Match(proto.UDP)).To(BeTrue())
+}
+
+func TestProtoSetDeleteString(t *testing.T) {
+	RegisterTestingT(t)
+
+	ps := NewProtoSet()
+	Expect(ps.Add(proto.TCP)).To(Succeed())
+	Expect(ps.Match(proto.TCP)).To(BeTrue())
+
+	Expect(ps.Delete("tcp")).To(Succeed())
+	Expect(ps.Match(proto.TCP)).To(BeFalse())
+}
+
+func TestProtoSetDeleteInvalidString(t *testing.T) {
+	RegisterTestingT(t)
+
+	ps := NewProtoSet()
+	Expect(ps.Delete("not-a-protocol")).To(HaveOccurred())
+}
+
+func TestProtoSetDeleteUnsupportedType(t *testing.T) {
+	RegisterTestingT(t)
+
+	ps := NewProtoSet()
+	Expect(ps.Delete(3.14)).To(HaveOccurred())
 }
 
 func TestProtoSetMatch(t *testing.T) {

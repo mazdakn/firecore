@@ -60,6 +60,51 @@ func (p *PortSet) Add(v any) error {
 	}
 }
 
+// Delete removes a value from the set. v accepts the same types as Add: a
+// uint16 port number, a port.Port (optionally representing a range), or a
+// string representation of a port number, well-known port name (e.g. "http"),
+// or port range (e.g. "1024-65535"). It implements the Set interface.
+func (p *PortSet) Delete(v any) error {
+	switch val := v.(type) {
+	case uint16:
+		p.set.Delete(val)
+		return nil
+	case port.Port:
+		if val.End != 0 && val.End < val.Number {
+			return fmt.Errorf("invalid port range: end %d must be >= start %d", val.End, val.Number)
+		}
+		if val.IsRange() {
+			p.deleteRange(val.Number, val.End)
+		} else {
+			p.set.Delete(val.Resolve())
+		}
+		return nil
+	case string:
+		parsed, err := port.Parse(val)
+		if err != nil {
+			return fmt.Errorf("invalid port %q: %w", val, err)
+		}
+		if parsed.IsRange() {
+			p.deleteRange(parsed.Number, parsed.End)
+		} else {
+			p.set.Delete(parsed.Number)
+		}
+		return nil
+	default:
+		return fmt.Errorf("PortSet.Delete: unsupported type %T", v)
+	}
+}
+
+// deleteRange removes the [start, end] range from p.ranges, if present.
+func (p *PortSet) deleteRange(start, end uint16) {
+	for i, r := range p.ranges {
+		if r.start == start && r.end == end {
+			p.ranges = append(p.ranges[:i], p.ranges[i+1:]...)
+			return
+		}
+	}
+}
+
 // Match reports whether v is present in the set or falls within any stored
 // range. v must be a uint16 port number. It implements the Set interface.
 func (p *PortSet) Match(v any) bool {

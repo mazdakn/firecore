@@ -58,6 +58,28 @@ func (s *IPPortSet) Add(v any) error {
 	}
 }
 
+// Delete removes a value from the set. v must be a string in the same
+// "ip-or-cidr,port-or-range" form accepted by Add.
+func (s *IPPortSet) Delete(v any) error {
+	switch val := v.(type) {
+	case string:
+		member, err := parseIPPortMember(val)
+		if err != nil {
+			return err
+		}
+		for i, existing := range s.members {
+			if existing.net.String() == member.net.String() &&
+				existing.start == member.start && existing.end == member.end {
+				s.members = append(s.members[:i], s.members[i+1:]...)
+				break
+			}
+		}
+		return nil
+	default:
+		return fmt.Errorf("IPPortSet.Delete: unsupported type %T", v)
+	}
+}
+
 // Match reports whether v is contained in the set.
 // v must be an IPPortTuple value.
 func (s *IPPortSet) Match(v any) bool {
