@@ -68,7 +68,7 @@ func (c *Chain) match(pkt *packet.Packet, result *Result, chains map[string]*Cha
 	if depth > MaxJumpDepth {
 		return false, fmt.Errorf("jump depth exceeded %d at chain %q: possible jump cycle", MaxJumpDepth, c.Name)
 	}
-	var state conntrack.State
+	state := conntrack.StateNew
 	if result.ConnState != nil {
 		state = *result.ConnState
 	}
