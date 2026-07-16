@@ -10,8 +10,8 @@ import (
 // IPSet is a Set of net.IPNet CIDR blocks. Networks are stored in a slice
 // rather than keyed by CIDR string, since MatchIP runs on the packet-matching
 // hot path and a slice scan avoids Go map iteration's per-element bucket-walk
-// overhead; Add/Delete are config-time operations, so the linear dedup scan
-// they do instead is not a concern.
+// overhead; Add is a config-time operation, so the linear dedup scan it does
+// instead is not a concern.
 type IPSet struct {
 	nets []*net.IPNet
 }
@@ -81,13 +81,6 @@ func validateIPNet(ipnet *net.IPNet) error {
 			len(ipnet.IP), len(ipnet.Mask))
 	}
 	return nil
-}
-
-// Delete removes ipnet from the set.
-func (s *IPSet) Delete(ipnet *net.IPNet) {
-	if i := s.indexOfNet(ipnet); i >= 0 {
-		s.nets = append(s.nets[:i], s.nets[i+1:]...)
-	}
 }
 
 // Match reports whether v is contained in any network in the set.
