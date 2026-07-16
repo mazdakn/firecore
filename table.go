@@ -151,18 +151,15 @@ func (t *Table) Match(pkt *packet.Packet, result *Result) (bool, error) {
 
 	entry, ok := t.Chains[t.entryChain]
 	if ok {
-		matchResult, err := entry.match(pkt, result, t.Chains, 0)
+		terminated, err := entry.match(pkt, result, t.Chains, 0)
 		if err != nil {
 			return false, err
 		}
-		switch matchResult {
-		case chainDecided:
-			return true, nil
-		case chainPass:
-			return false, nil
+		if terminated {
+			return result.Verdict.IsTerminal(), nil
 		}
 	}
-	// chainContinue: entry chain fell through
+	// Entry chain fell through without a verdict.
 	return t.MatchDefaultRule(result), nil
 }
 

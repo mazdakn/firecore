@@ -8,20 +8,6 @@ import (
 	"github.com/mazdakn/firecore/packet"
 )
 
-// chainMatchResult indicates the outcome of evaluating a chain.
-type chainMatchResult int
-
-const (
-	// chainContinue means no rule produced a terminal verdict; evaluation
-	// should resume in the calling context (parent chain or table default).
-	chainContinue chainMatchResult = iota
-	// chainDecided means a terminal verdict (Accept or Drop) was recorded.
-	chainDecided
-	// chainPass means a Pass action was recorded; evaluation continues in
-	// the next table.
-	chainPass
-)
-
 // MaxJumpDepth caps how many nested Jump rules a single Match call will
 // follow. It exists as a runtime safety net against jump cycles that were
 // never checked with Table.Validate — without it, a cycle recurses until the
@@ -74,12 +60,13 @@ func (c *Chain) AddRule(r *Rule) error {
 // cycles that Table.Validate wasn't run to catch. All evaluated rules
 // (whether they match or not) are appended to result.Trace.
 //
-// Returns chainDecided if a terminal verdict (Accept/Drop) was set, chainPass
-// if a Pass action was triggered, or chainContinue if evaluation should return
-// to the calling context (Return action or no rule matched).
-func (c *Chain) match(pkt *packet.Packet, result *Result, chains map[string]*Chain, depth int) (chainMatchResult, error) {
+// Returns true if a rule set result.Verdict (Accept, Drop, or Pass) and
+// evaluation is done; the caller distinguishes which via
+// result.Verdict.IsTerminal(). Returns false if evaluation should resume in
+// the calling context (Return action or no rule matched).
+func (c *Chain) match(pkt *packet.Packet, result *Result, chains map[string]*Chain, depth int) (bool, error) {
 	if depth > MaxJumpDepth {
-		return chainContinue, fmt.Errorf("jump depth exceeded %d at chain %q: possible jump cycle", MaxJumpDepth, c.Name)
+		return false, fmt.Errorf("jump depth exceeded %d at chain %q: possible jump cycle", MaxJumpDepth, c.Name)
 	}
 	var state conntrack.State
 	if result.ConnState != nil {
@@ -89,30 +76,27 @@ func (c *Chain) match(pkt *packet.Packet, result *Result, chains map[string]*Cha
 		result.Trace = append(result.Trace, r)
 		if r.MatchWithConntrackState(pkt, state) {
 			switch r.Action {
-			case Accept, Drop:
+			case Accept, Drop, Pass:
 				result.Verdict = &r.Action
-				return chainDecided, nil
-			case Pass:
-				result.Verdict = &r.Action
-				return chainPass, nil
+				return true, nil
 			case Return:
-				return chainContinue, nil
+				return false, nil
 			case Jump:
 				target, ok := chains[r.JumpTarget]
 				if !ok {
-					return chainContinue, fmt.Errorf("chain %q not found", r.JumpTarget)
+					return false, fmt.Errorf("chain %q not found", r.JumpTarget)
 				}
-				matchResult, err := target.match(pkt, result, chains, depth+1)
+				terminated, err := target.match(pkt, result, chains, depth+1)
 				if err != nil {
-					return chainContinue, err
+					return false, err
 				}
-				if matchResult != chainContinue {
-					return matchResult, nil
+				if terminated {
+					return true, nil
 				}
 				// Target chain returned without a verdict; continue evaluating
 				// the current chain at the next rule.
 			}
 		}
 	}
-	return chainContinue, nil
+	return false, nil
 }
