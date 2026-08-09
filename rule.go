@@ -370,9 +370,9 @@ func WithNotDstSet(s set.Set) RuleOption {
 
 // Source address options.
 
-// parseCIDR parses a CIDR block (e.g. "10.0.0.0/8") or single IP address string
+// parseCIDRorIP parses a CIDR block (e.g. "10.0.0.0/8") or single IP address string
 // (e.g. "10.0.0.1"), returning a consistently-formatted error on failure.
-func parseCIDR(cidr string) (*net.IPNet, error) {
+func parseCIDRorIP(cidr string) (*net.IPNet, error) {
 	if _, ipnet, err := net.ParseCIDR(cidr); err == nil {
 		return ipnet, nil
 	}
@@ -388,7 +388,7 @@ func parseCIDR(cidr string) (*net.IPNet, error) {
 
 func withSrcNet(cidr string, negate bool) RuleOption {
 	return func(r *Rule) error {
-		ipnet, err := parseCIDR(cidr)
+		ipnet, err := parseCIDRorIP(cidr)
 		if err != nil {
 			return err
 		}
@@ -419,7 +419,7 @@ func WithNotSrcNet(cidr string) RuleOption {
 
 func withDstNet(cidr string, negate bool) RuleOption {
 	return func(r *Rule) error {
-		ipnet, err := parseCIDR(cidr)
+		ipnet, err := parseCIDRorIP(cidr)
 		if err != nil {
 			return err
 		}
