@@ -2,11 +2,11 @@ package firecore
 
 import (
 	"fmt"
-	"net"
 	"strings"
 
 	"github.com/mazdakn/firecore/conntrack"
 	"github.com/mazdakn/firecore/counter"
+	"github.com/mazdakn/firecore/iputil"
 	"github.com/mazdakn/firecore/matcher"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/payload"
@@ -370,18 +370,9 @@ func WithNotDstSet(s set.Set) RuleOption {
 
 // Source address options.
 
-// parseCIDR parses cidr, returning a consistently-formatted error on failure.
-func parseCIDR(cidr string) (*net.IPNet, error) {
-	_, ipnet, err := net.ParseCIDR(cidr)
-	if err != nil {
-		return nil, fmt.Errorf("CIDR %s is invalid", cidr)
-	}
-	return ipnet, nil
-}
-
 func withSrcNet(cidr string, negate bool) RuleOption {
 	return func(r *Rule) error {
-		ipnet, err := parseCIDR(cidr)
+		ipnet, err := iputil.ParseCIDROrIP(cidr)
 		if err != nil {
 			return err
 		}
@@ -412,7 +403,7 @@ func WithNotSrcNet(cidr string) RuleOption {
 
 func withDstNet(cidr string, negate bool) RuleOption {
 	return func(r *Rule) error {
-		ipnet, err := parseCIDR(cidr)
+		ipnet, err := iputil.ParseCIDROrIP(cidr)
 		if err != nil {
 			return err
 		}

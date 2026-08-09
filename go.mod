@@ -1,6 +1,6 @@
 module github.com/mazdakn/firecore
 
-go 1.24.1
+go 1.26
 
 require github.com/onsi/gomega v1.38.2
 

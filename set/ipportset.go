@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mazdakn/firecore/iputil"
 	"github.com/mazdakn/firecore/port"
 )
 
@@ -134,7 +135,7 @@ func parseIPPortMember(v string) (ipPortMember, error) {
 	ipExpr := strings.TrimSpace(parts[0])
 	portExpr := strings.TrimSpace(parts[1])
 
-	ipnet, err := parseIPOrCIDR(ipExpr)
+	ipnet, err := iputil.ParseCIDROrIP(ipExpr)
 	if err != nil {
 		return ipPortMember{}, fmt.Errorf("invalid ip in %q: %w", v, err)
 	}
@@ -154,16 +155,3 @@ func parseIPPortMember(v string) (ipPortMember, error) {
 	}, nil
 }
 
-func parseIPOrCIDR(v string) (*net.IPNet, error) {
-	if _, ipnet, err := net.ParseCIDR(v); err == nil {
-		return ipnet, nil
-	}
-	ip := net.ParseIP(v)
-	if ip == nil {
-		return nil, fmt.Errorf("invalid IP/CIDR %q", v)
-	}
-	if ip.To4() != nil {
-		return &net.IPNet{IP: ip, Mask: net.CIDRMask(32, 32)}, nil
-	}
-	return &net.IPNet{IP: ip, Mask: net.CIDRMask(128, 128)}, nil
-}

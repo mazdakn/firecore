@@ -1,6 +1,7 @@
 package conntrack
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/mazdakn/firecore/packet"
@@ -81,4 +82,48 @@ func TestTrackerCommitAcceptedReturnsErrorForNilPacket(t *testing.T) {
 
 	tracker := NewTracker()
 	Expect(tracker.CommitAccepted(nil)).To(HaveOccurred())
+}
+
+func TestTrackerConcurrentAccess(t *testing.T) {
+	RegisterTestingT(t)
+
+	tracker := NewTracker()
+	pkt := mustNewPacket(t,
+		packet.WithSrcAddr("10.0.0.1"),
+		packet.WithSrcPort(12345),
+		packet.WithDstAddr("1.1.1.1"),
+		packet.WithDstPort(80),
+		packet.WithProto(proto.TCP),
+	)
+
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		for range 100 {
+			_, _ = tracker.Lookup(pkt)
+			_ = tracker.CommitAccepted(pkt)
+		}
+	})
+	wg.Wait()
+
+	state, err := tracker.Lookup(pkt)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(state).To(Equal(StateEstablished))
+}
+
+func BenchmarkTrackerLookup(b *testing.B) {
+	tracker := NewTracker()
+	pkt, _ := packet.New(
+		packet.WithSrcAddr("10.0.0.1"),
+		packet.WithSrcPort(12345),
+		packet.WithDstAddr("1.1.1.1"),
+		packet.WithDstPort(80),
+		packet.WithProto(proto.TCP),
+	)
+	_ = tracker.CommitAccepted(pkt)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for b.Loop() {
+		_, _ = tracker.Lookup(pkt)
+	}
 }

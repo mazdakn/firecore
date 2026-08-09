@@ -5,6 +5,8 @@ import (
 	"net"
 	"sort"
 	"strings"
+
+	"github.com/mazdakn/firecore/iputil"
 )
 
 // IPSet is a Set of net.IPNet CIDR blocks. Networks are stored in a slice
@@ -34,7 +36,8 @@ func (s *IPSet) indexOfNet(ipnet *net.IPNet) int {
 }
 
 // Add inserts a value into the set. v must be either a *net.IPNet or a string
-// in CIDR notation. It implements the Set interface.
+// representing an IP address (e.g. "10.0.0.1") or a CIDR block (e.g. "10.0.0.0/8").
+// It implements the Set interface.
 func (s *IPSet) Add(v any) error {
 	var ipnet *net.IPNet
 	switch val := v.(type) {
@@ -44,9 +47,9 @@ func (s *IPSet) Add(v any) error {
 		}
 		ipnet = val
 	case string:
-		_, parsed, err := net.ParseCIDR(val)
+		parsed, err := iputil.ParseCIDROrIP(val)
 		if err != nil {
-			return fmt.Errorf("invalid CIDR %q: %w", val, err)
+			return fmt.Errorf("invalid IP/CIDR %q: %w", val, err)
 		}
 		ipnet = parsed
 	default:
@@ -84,7 +87,8 @@ func validateIPNet(ipnet *net.IPNet) error {
 }
 
 // Delete removes a value from the set. v accepts the same types as Add: a
-// *net.IPNet or a string in CIDR notation. It implements the Set interface.
+// *net.IPNet or a string representing an IP address or CIDR block. It implements
+// the Set interface.
 func (s *IPSet) Delete(v any) error {
 	var ipnet *net.IPNet
 	switch val := v.(type) {
@@ -94,9 +98,9 @@ func (s *IPSet) Delete(v any) error {
 		}
 		ipnet = val
 	case string:
-		_, parsed, err := net.ParseCIDR(val)
+		parsed, err := iputil.ParseCIDROrIP(val)
 		if err != nil {
-			return fmt.Errorf("invalid CIDR %q: %w", val, err)
+			return fmt.Errorf("invalid IP/CIDR %q: %w", val, err)
 		}
 		ipnet = parsed
 	default:

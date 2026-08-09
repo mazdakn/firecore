@@ -294,7 +294,6 @@ func TestNewReturnsErrorOnInvalidCIDR(t *testing.T) {
 
 	tests := []string{
 		"invalid-cidr",
-		"10.10.10.1",         // Missing prefix length
 		"256.256.256.256/32", // Invalid IP
 		"not-an-ip/24",
 	}
@@ -309,6 +308,19 @@ func TestNewReturnsErrorOnInvalidCIDR(t *testing.T) {
 			Expect(err).To(HaveOccurred())
 		})
 	}
+}
+
+func TestNewRuleSupportsSingleIPAddress(t *testing.T) {
+	RegisterTestingT(t)
+
+	r, err := NewRule(WithSrcNet("10.10.10.1"), WithAction(Accept))
+	Expect(err).NotTo(HaveOccurred())
+
+	pktMatch := mustNewPacket(t, packet.WithSrcAddr("10.10.10.1"))
+	pktNoMatch := mustNewPacket(t, packet.WithSrcAddr("10.10.10.2"))
+
+	Expect(r.Match(pktMatch)).To(BeTrue())
+	Expect(r.Match(pktNoMatch)).To(BeFalse())
 }
 
 func makeCommonRules(srcNet, dstNet string, p proto.Proto, srcPort, dstPort uint16) []*Rule {

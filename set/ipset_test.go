@@ -140,3 +140,27 @@ func TestIPSetStringMultipleNets(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(s.String()).To(Equal("{10.0.0.0/8,192.168.0.0/16}"))
 }
+
+func TestIPSetAddSingleIP(t *testing.T) {
+	RegisterTestingT(t)
+
+	s := NewIPSet()
+	Expect(s.Add("10.0.0.1")).To(Succeed())
+	Expect(s.Add("2001:db8::1")).To(Succeed())
+
+	Expect(s.Match(net.ParseIP("10.0.0.1"))).To(BeTrue())
+	Expect(s.Match(net.ParseIP("10.0.0.2"))).To(BeFalse())
+	Expect(s.Match(net.ParseIP("2001:db8::1"))).To(BeTrue())
+	Expect(s.Match(net.ParseIP("2001:db8::2"))).To(BeFalse())
+}
+
+func TestIPSetDeleteSingleIP(t *testing.T) {
+	RegisterTestingT(t)
+
+	s := NewIPSet()
+	Expect(s.Add("10.0.0.1")).To(Succeed())
+	Expect(s.Match(net.ParseIP("10.0.0.1"))).To(BeTrue())
+
+	Expect(s.Delete("10.0.0.1")).To(Succeed())
+	Expect(s.Match(net.ParseIP("10.0.0.1"))).To(BeFalse())
+}
