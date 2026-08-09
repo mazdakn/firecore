@@ -5,6 +5,8 @@ import (
 	"net"
 	"sort"
 	"strings"
+
+	"github.com/mazdakn/firecore/iputil"
 )
 
 // IPSet is a Set of net.IPNet CIDR blocks. Networks are stored in a slice
@@ -45,7 +47,7 @@ func (s *IPSet) Add(v any) error {
 		}
 		ipnet = val
 	case string:
-		parsed, err := parseIPOrCIDR(val)
+		parsed, err := iputil.ParseCIDROrIP(val)
 		if err != nil {
 			return fmt.Errorf("invalid IP/CIDR %q: %w", val, err)
 		}
@@ -96,7 +98,7 @@ func (s *IPSet) Delete(v any) error {
 		}
 		ipnet = val
 	case string:
-		parsed, err := parseIPOrCIDR(val)
+		parsed, err := iputil.ParseCIDROrIP(val)
 		if err != nil {
 			return fmt.Errorf("invalid IP/CIDR %q: %w", val, err)
 		}
