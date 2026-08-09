@@ -1,6 +1,7 @@
 package conntrack
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/mazdakn/firecore/packet"
@@ -95,20 +96,14 @@ func TestTrackerConcurrentAccess(t *testing.T) {
 		packet.WithProto(proto.TCP),
 	)
 
-	done := make(chan struct{})
-	for i := 0; i < 10; i++ {
-		go func() {
-			for j := 0; j < 100; j++ {
-				_, _ = tracker.Lookup(pkt)
-				_ = tracker.CommitAccepted(pkt)
-			}
-			done <- struct{}{}
-		}()
-	}
-
-	for i := 0; i < 10; i++ {
-		<-done
-	}
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		for range 100 {
+			_, _ = tracker.Lookup(pkt)
+			_ = tracker.CommitAccepted(pkt)
+		}
+	})
+	wg.Wait()
 
 	state, err := tracker.Lookup(pkt)
 	Expect(err).NotTo(HaveOccurred())

@@ -164,4 +164,3 @@ func TestIPSetDeleteSingleIP(t *testing.T) {
 	Expect(s.Delete("10.0.0.1")).To(Succeed())
 	Expect(s.Match(net.ParseIP("10.0.0.1"))).To(BeFalse())
 }
-
