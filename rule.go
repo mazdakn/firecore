@@ -370,13 +370,20 @@ func WithNotDstSet(s set.Set) RuleOption {
 
 // Source address options.
 
-// parseCIDR parses cidr, returning a consistently-formatted error on failure.
+// parseCIDR parses a CIDR block (e.g. "10.0.0.0/8") or single IP address string
+// (e.g. "10.0.0.1"), returning a consistently-formatted error on failure.
 func parseCIDR(cidr string) (*net.IPNet, error) {
-	_, ipnet, err := net.ParseCIDR(cidr)
-	if err != nil {
+	if _, ipnet, err := net.ParseCIDR(cidr); err == nil {
+		return ipnet, nil
+	}
+	ip := net.ParseIP(cidr)
+	if ip == nil {
 		return nil, fmt.Errorf("CIDR %s is invalid", cidr)
 	}
-	return ipnet, nil
+	if ip4 := ip.To4(); ip4 != nil {
+		return &net.IPNet{IP: ip4, Mask: net.CIDRMask(32, 32)}, nil
+	}
+	return &net.IPNet{IP: ip, Mask: net.CIDRMask(128, 128)}, nil
 }
 
 func withSrcNet(cidr string, negate bool) RuleOption {

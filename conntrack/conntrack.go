@@ -2,7 +2,9 @@ package conntrack
 
 import (
 	"fmt"
+	"net"
 	"strings"
+	"sync"
 
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/proto"
@@ -30,15 +32,30 @@ func ParseState(raw string) (State, error) {
 	}
 }
 
+type ipAddr [16]byte
+
+func ipToAddr(ip net.IP) ipAddr {
+	var a ipAddr
+	if ip4 := ip.To4(); ip4 != nil {
+		a[10] = 0xff
+		a[11] = 0xff
+		copy(a[12:], ip4)
+	} else if len(ip) == 16 {
+		copy(a[:], ip)
+	}
+	return a
+}
+
 type key struct {
 	Proto   proto.Proto
-	SrcAddr string
+	SrcAddr ipAddr
 	SrcPort uint16
-	DstAddr string
+	DstAddr ipAddr
 	DstPort uint16
 }
 
 type Tracker struct {
+	mu      sync.RWMutex
 	entries map[key]State
 }
 
@@ -52,7 +69,11 @@ func (t *Tracker) Lookup(pkt *packet.Packet) (State, error) {
 	if pkt == nil {
 		return "", fmt.Errorf("conntrack.Lookup: nil packet")
 	}
-	if state, ok := t.entries[keyFromPacket(pkt)]; ok {
+	k := keyFromPacket(pkt)
+	t.mu.RLock()
+	state, ok := t.entries[k]
+	t.mu.RUnlock()
+	if ok {
 		return state, nil
 	}
 	return StateNew, nil
@@ -64,17 +85,19 @@ func (t *Tracker) CommitAccepted(pkt *packet.Packet) error {
 	}
 	forward := keyFromPacket(pkt)
 	reverse := reverseKeyFromPacket(pkt)
+	t.mu.Lock()
 	t.entries[forward] = StateEstablished
 	t.entries[reverse] = StateEstablished
+	t.mu.Unlock()
 	return nil
 }
 
 func keyFromPacket(pkt *packet.Packet) key {
 	return key{
 		Proto:   pkt.Proto,
-		SrcAddr: pkt.SrcAddr.String(),
+		SrcAddr: ipToAddr(pkt.SrcAddr),
 		SrcPort: pkt.SrcPort,
-		DstAddr: pkt.DstAddr.String(),
+		DstAddr: ipToAddr(pkt.DstAddr),
 		DstPort: pkt.DstPort,
 	}
 }
@@ -82,9 +105,9 @@ func keyFromPacket(pkt *packet.Packet) key {
 func reverseKeyFromPacket(pkt *packet.Packet) key {
 	return key{
 		Proto:   pkt.Proto,
-		SrcAddr: pkt.DstAddr.String(),
+		SrcAddr: ipToAddr(pkt.DstAddr),
 		SrcPort: pkt.DstPort,
-		DstAddr: pkt.SrcAddr.String(),
+		DstAddr: ipToAddr(pkt.SrcAddr),
 		DstPort: pkt.SrcPort,
 	}
 }

@@ -162,8 +162,9 @@ func parseIPOrCIDR(v string) (*net.IPNet, error) {
 	if ip == nil {
 		return nil, fmt.Errorf("invalid IP/CIDR %q", v)
 	}
-	if ip.To4() != nil {
-		return &net.IPNet{IP: ip, Mask: net.CIDRMask(32, 32)}, nil
+	if ip4 := ip.To4(); ip4 != nil {
+		return &net.IPNet{IP: ip4, Mask: net.CIDRMask(32, 32)}, nil
 	}
 	return &net.IPNet{IP: ip, Mask: net.CIDRMask(128, 128)}, nil
 }
+
