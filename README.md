@@ -100,3 +100,8 @@ make test
 ```
 
 Runs `go vet`, `golangci-lint`, and `go test -race -cover` across all packages. Root-level tests are split between `package firecore` (internal, e.g. `firecore_test.go`, `table_test.go`) and `package firecore_test` (external, black-box tests named `*_ext_test.go`).
+
+## License
+
+`firecore` is released under the [Apache 2.0 License](LICENSE).
+
