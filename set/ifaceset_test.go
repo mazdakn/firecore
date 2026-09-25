@@ -2,94 +2,118 @@ package set
 
 import (
 	"testing"
-
-	. "github.com/onsi/gomega"
 )
 
 func TestIfaceSetAdd(t *testing.T) {
-	RegisterTestingT(t)
-
 	s := NewIfaceSet()
 
-	Expect(s.Add("eth0")).To(Succeed())
-	Expect(s.Match("eth0")).To(BeTrue())
-	Expect(s.Match("eth1")).To(BeFalse())
+	if err := s.Add("eth0"); err != nil {
+		t.Fatalf("s.Add(eth0) unexpected error: %v", err)
+	}
+	if !s.Match("eth0") {
+		t.Errorf("s.Match(eth0) = false; want true")
+	}
+	if s.Match("eth1") {
+		t.Errorf("s.Match(eth1) = true; want false")
+	}
 }
 
 func TestIfaceSetAddUnsupportedType(t *testing.T) {
-	RegisterTestingT(t)
-
 	s := NewIfaceSet()
-	Expect(s.Add(42)).To(HaveOccurred())
+	if err := s.Add(42); err == nil {
+		t.Fatal("s.Add(42) expected error, got nil")
+	}
 }
 
 func TestIfaceSetDelete(t *testing.T) {
-	RegisterTestingT(t)
-
 	s := NewIfaceSet()
-	Expect(s.Add("eth0")).To(Succeed())
-	Expect(s.Add("eth1")).To(Succeed())
-	Expect(s.Match("eth0")).To(BeTrue())
+	if err := s.Add("eth0"); err != nil {
+		t.Fatalf("s.Add(eth0) unexpected error: %v", err)
+	}
+	if err := s.Add("eth1"); err != nil {
+		t.Fatalf("s.Add(eth1) unexpected error: %v", err)
+	}
+	if !s.Match("eth0") {
+		t.Errorf("s.Match(eth0) = false; want true")
+	}
 
-	Expect(s.Delete("eth0")).To(Succeed())
-	Expect(s.Match("eth0")).To(BeFalse())
-	Expect(s.Match("eth1")).To(BeTrue())
+	if err := s.Delete("eth0"); err != nil {
+		t.Fatalf("s.Delete(eth0) unexpected error: %v", err)
+	}
+	if s.Match("eth0") {
+		t.Errorf("s.Match(eth0) = true; want false after delete")
+	}
+	if !s.Match("eth1") {
+		t.Errorf("s.Match(eth1) = false; want true")
+	}
 }
 
 func TestIfaceSetDeleteUnsupportedType(t *testing.T) {
-	RegisterTestingT(t)
-
 	s := NewIfaceSet()
-	Expect(s.Delete(42)).To(HaveOccurred())
+	if err := s.Delete(42); err == nil {
+		t.Fatal("s.Delete(42) expected error, got nil")
+	}
 }
 
 func TestIfaceSetMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	s := NewIfaceSet()
 
-	Expect(s.Match("eth0")).To(BeFalse())
+	if s.Match("eth0") {
+		t.Errorf("s.Match(eth0) on empty set = true; want false")
+	}
 
-	Expect(s.Add("eth0")).To(Succeed())
-	Expect(s.Match("eth0")).To(BeTrue())
-	Expect(s.Match("eth1")).To(BeFalse())
+	if err := s.Add("eth0"); err != nil {
+		t.Fatalf("s.Add(eth0) unexpected error: %v", err)
+	}
+	if !s.Match("eth0") {
+		t.Errorf("s.Match(eth0) = false; want true")
+	}
+	if s.Match("eth1") {
+		t.Errorf("s.Match(eth1) = true; want false")
+	}
 }
 
 func TestIfaceSetMatchWrongType(t *testing.T) {
-	RegisterTestingT(t)
-
 	s := NewIfaceSet()
-	Expect(s.Add("eth0")).To(Succeed())
-	Expect(s.Match(42)).To(BeFalse())
+	if err := s.Add("eth0"); err != nil {
+		t.Fatalf("s.Add(eth0) unexpected error: %v", err)
+	}
+	if s.Match(42) {
+		t.Errorf("s.Match(42) = true; want false")
+	}
 }
 
 func TestIfaceSetStringOneIface(t *testing.T) {
-	RegisterTestingT(t)
-
 	s := NewIfaceSet()
-	Expect(s.Add("eth0")).To(Succeed())
-	Expect(s.String()).To(Equal("eth0"))
+	if err := s.Add("eth0"); err != nil {
+		t.Fatalf("s.Add(eth0) unexpected error: %v", err)
+	}
+	if got := s.String(); got != "eth0" {
+		t.Errorf("s.String() = %q; want eth0", got)
+	}
 }
 
 func TestIfaceSetStringMultipleIfaces(t *testing.T) {
-	RegisterTestingT(t)
-
 	s := NewIfaceSet()
-	Expect(s.Add("eth1")).To(Succeed())
-	Expect(s.Add("eth0")).To(Succeed())
-	Expect(s.String()).To(Equal("{eth0,eth1}"))
+	if err := s.Add("eth1"); err != nil {
+		t.Fatalf("s.Add(eth1) unexpected error: %v", err)
+	}
+	if err := s.Add("eth0"); err != nil {
+		t.Fatalf("s.Add(eth0) unexpected error: %v", err)
+	}
+	if got := s.String(); got != "{eth0,eth1}" {
+		t.Errorf("s.String() = %q; want {eth0,eth1}", got)
+	}
 }
 
 func TestIfaceSetStringEmpty(t *testing.T) {
-	RegisterTestingT(t)
-
 	s := NewIfaceSet()
-	Expect(s.String()).To(Equal("{}"))
+	if got := s.String(); got != "{}" {
+		t.Errorf("s.String() = %q; want {}", got)
+	}
 }
 
 func TestIfaceSetAddInvalid(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []struct {
 		name  string
 		iface string
@@ -104,8 +128,12 @@ func TestIfaceSetAddInvalid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewIfaceSet()
-			Expect(s.Add(tt.iface)).To(HaveOccurred())
-			Expect(s.Match(tt.iface)).To(BeFalse())
+			if err := s.Add(tt.iface); err == nil {
+				t.Errorf("s.Add(%q) expected error, got nil", tt.iface)
+			}
+			if s.Match(tt.iface) {
+				t.Errorf("s.Match(%q) = true; want false", tt.iface)
+			}
 		})
 	}
 }

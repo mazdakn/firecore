@@ -10,54 +10,63 @@ import (
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/proto"
 	"github.com/mazdakn/firecore/set"
-	. "github.com/onsi/gomega"
 )
 
 func mustNew(opts ...RuleOption) *Rule {
 	r, err := NewRule(opts...)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		panic(fmt.Sprintf("NewRule: %v", err))
+	}
 	return r
 }
 
 func mustNewPacket(t testing.TB, opts ...packet.Option) *packet.Packet {
 	t.Helper()
 	pkt, err := packet.New(opts...)
-	Expect(err).ToNot(HaveOccurred())
+	if err != nil {
+		t.Fatalf("packet.New: %v", err)
+	}
 	return pkt
 }
 
 func TestWithNameEmptyFails(t *testing.T) {
-	RegisterTestingT(t)
-
 	r, err := NewRule(WithName(""))
-	Expect(err).To(HaveOccurred())
-	Expect(r).To(BeNil())
+	if err == nil {
+		t.Fatal("NewRule(WithName(\"\")) expected error, got nil")
+	}
+	if r != nil {
+		t.Errorf("NewRule(WithName(\"\")) expected nil rule, got %v", r)
+	}
 }
 
 func TestNewRuleNilOptionFails(t *testing.T) {
-	RegisterTestingT(t)
-
 	r, err := NewRule(WithAction(Accept), nil)
-	Expect(err).To(HaveOccurred())
-	Expect(r).To(BeNil())
+	if err == nil {
+		t.Fatal("NewRule with nil option expected error, got nil")
+	}
+	if r != nil {
+		t.Errorf("NewRule with nil option expected nil rule, got %v", r)
+	}
 }
 
 func TestRuleMatchNilPacketReturnsFalse(t *testing.T) {
-	RegisterTestingT(t)
-
 	r := mustNew(WithProto(proto.TCP), WithDstPort(80), WithAction(Accept))
-	Expect(r.Match(nil)).To(BeFalse())
-	Expect(r.MatchWithConntrackState(nil, conntrack.StateEstablished)).To(BeFalse())
+	if r.Match(nil) {
+		t.Error("r.Match(nil) = true; want false")
+	}
+	if r.MatchWithConntrackState(nil, conntrack.StateEstablished) {
+		t.Error("r.MatchWithConntrackState(nil, established) = true; want false")
+	}
 
 	// A nil packet must not satisfy a negated-only condition either
 	// (fail closed, not fail open).
 	rNegated := mustNew(WithNotProto(proto.TCP))
-	Expect(rNegated.Match(nil)).To(BeFalse())
+	if rNegated.Match(nil) {
+		t.Error("rNegated.Match(nil) = true; want false")
+	}
 }
 
 func TestEmptyRule(t *testing.T) {
-	RegisterTestingT(t)
-
 	rule := mustNew()
 	pkt1 := mustNewPacket(t,
 		packet.WithSrcAddr("10.10.10.1"), packet.WithSrcPort(55555), packet.WithProto(proto.UDP),
@@ -78,14 +87,14 @@ func TestEmptyRule(t *testing.T) {
 	pkts := []*packet.Packet{pkt1, pkt2, pkt3, pkt4}
 	for _, pkt := range pkts {
 		t.Run(pkt.String(), func(t *testing.T) {
-			Expect(rule.Match(pkt)).To(BeTrue())
+			if !rule.Match(pkt) {
+				t.Errorf("rule.Match(%s) = false; want true", pkt)
+			}
 		})
 	}
 }
 
 func TestRuleIPFamilyMismatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	// IPv6 packet
 	pktV6 := mustNewPacket(t,
 		packet.WithSrcAddr("dead:beef::1"), packet.WithSrcPort(44444), packet.WithProto(proto.TCP),
@@ -101,7 +110,9 @@ func TestRuleIPFamilyMismatch(t *testing.T) {
 	}
 	for i, r := range ipv4Rules {
 		t.Run(fmt.Sprintf("IPv4 rule %d should not match IPv6 packet", i), func(t *testing.T) {
-			Expect(r.Match(pktV6)).To(BeFalse())
+			if r.Match(pktV6) {
+				t.Errorf("IPv4 rule %d matched IPv6 packet", i)
+			}
 		})
 	}
 
@@ -120,14 +131,14 @@ func TestRuleIPFamilyMismatch(t *testing.T) {
 	}
 	for i, r := range ipv6Rules {
 		t.Run(fmt.Sprintf("IPv6 rule %d should not match IPv4 packet", i), func(t *testing.T) {
-			Expect(r.Match(pktV4)).To(BeFalse())
+			if r.Match(pktV4) {
+				t.Errorf("IPv6 rule %d matched IPv4 packet", i)
+			}
 		})
 	}
 }
 
 func TestRuleMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	pktShouldMatch := mustNewPacket(t,
 		packet.WithSrcAddr("10.10.10.1"), packet.WithSrcPort(55555), packet.WithProto(proto.UDP),
 		packet.WithDstAddr("1.1.1.1"), packet.WithDstPort(53),
@@ -138,17 +149,19 @@ func TestRuleMatch(t *testing.T) {
 	)
 	for i, r := range makeCommonRules("10.10.10.0/24", "1.1.1.1/32", proto.UDP, 55555, 53) {
 		t.Run(fmt.Sprintf("rule %d should match", i), func(t *testing.T) {
-			Expect(r.Match(pktShouldMatch)).To(BeTrue())
+			if !r.Match(pktShouldMatch) {
+				t.Errorf("rule %d should match, but returned false", i)
+			}
 		})
 		t.Run(fmt.Sprintf("rule %d should not match", i), func(t *testing.T) {
-			Expect(r.Match(pktShouldNotMatch)).To(BeFalse())
+			if r.Match(pktShouldNotMatch) {
+				t.Errorf("rule %d should not match, but returned true", i)
+			}
 		})
 	}
 }
 
 func TestRuleMatchV6(t *testing.T) {
-	RegisterTestingT(t)
-
 	pktShouldMatch := mustNewPacket(t,
 		packet.WithSrcAddr("dead:beef::1"), packet.WithSrcPort(44444), packet.WithProto(proto.TCP),
 		packet.WithDstAddr("cafe::1"), packet.WithDstPort(80),
@@ -159,17 +172,19 @@ func TestRuleMatchV6(t *testing.T) {
 	)
 	for i, r := range makeCommonRules("dead:beef::/64", "cafe::/112", proto.TCP, 44444, 80) {
 		t.Run(fmt.Sprintf("rule %d should match", i), func(t *testing.T) {
-			Expect(r.Match(pktShouldMatch)).To(BeTrue())
+			if !r.Match(pktShouldMatch) {
+				t.Errorf("rule %d should match, but returned false", i)
+			}
 		})
 		t.Run(fmt.Sprintf("rule %d should not match", i), func(t *testing.T) {
-			Expect(r.Match(pktShouldNotMatch)).To(BeFalse())
+			if r.Match(pktShouldNotMatch) {
+				t.Errorf("rule %d should not match, but returned true", i)
+			}
 		})
 	}
 }
 
 func TestRuleConntrackStateMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithSrcPort(12345),
@@ -183,29 +198,35 @@ func TestRuleConntrackStateMatch(t *testing.T) {
 		WithConnState(conntrack.StateEstablished),
 	)
 
-	Expect(r.MatchWithConntrackState(pkt, conntrack.StateEstablished)).To(BeTrue())
-	Expect(r.MatchWithConntrackState(pkt, conntrack.StateNew)).To(BeFalse())
+	if !r.MatchWithConntrackState(pkt, conntrack.StateEstablished) {
+		t.Error("r.MatchWithConntrackState(pkt, established) = false; want true")
+	}
+	if r.MatchWithConntrackState(pkt, conntrack.StateNew) {
+		t.Error("r.MatchWithConntrackState(pkt, new) = true; want false")
+	}
 }
 
 func TestWithConnStateInvalidFails(t *testing.T) {
-	RegisterTestingT(t)
-
 	r, err := NewRule(WithConnState(conntrack.State("bogus")))
-	Expect(err).To(HaveOccurred())
-	Expect(r).To(BeNil())
+	if err == nil {
+		t.Fatal("NewRule(WithConnState(bogus)) expected error, got nil")
+	}
+	if r != nil {
+		t.Errorf("expected nil rule, got %v", r)
+	}
 }
 
 func TestWithNotConnStateInvalidFails(t *testing.T) {
-	RegisterTestingT(t)
-
 	r, err := NewRule(WithNotConnState(conntrack.State("bogus")))
-	Expect(err).To(HaveOccurred())
-	Expect(r).To(BeNil())
+	if err == nil {
+		t.Fatal("NewRule(WithNotConnState(bogus)) expected error, got nil")
+	}
+	if r != nil {
+		t.Errorf("expected nil rule, got %v", r)
+	}
 }
 
 func TestRuleNegatedConntrackStateMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
 		packet.WithSrcPort(12345),
@@ -219,32 +240,36 @@ func TestRuleNegatedConntrackStateMatch(t *testing.T) {
 		WithNotConnState(conntrack.StateEstablished),
 	)
 
-	Expect(r.MatchWithConntrackState(pkt, conntrack.StateNew)).To(BeTrue())
-	Expect(r.MatchWithConntrackState(pkt, conntrack.StateEstablished)).To(BeFalse())
+	if !r.MatchWithConntrackState(pkt, conntrack.StateNew) {
+		t.Error("r.MatchWithConntrackState(pkt, new) = false; want true")
+	}
+	if r.MatchWithConntrackState(pkt, conntrack.StateEstablished) {
+		t.Error("r.MatchWithConntrackState(pkt, established) = true; want false")
+	}
 }
 
 func TestRulePayloadMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	r := mustNew(WithPayload(`GET /admin`))
 
 	pktMatch := mustNewPacket(t, packet.WithPayload([]byte("GET /admin HTTP/1.1")))
 	pktNoMatch := mustNewPacket(t, packet.WithPayload([]byte("GET /public HTTP/1.1")))
 
-	Expect(r.Match(pktMatch)).To(BeTrue())
-	Expect(r.Match(pktNoMatch)).To(BeFalse())
+	if !r.Match(pktMatch) {
+		t.Error("r.Match(pktMatch) = false; want true")
+	}
+	if r.Match(pktNoMatch) {
+		t.Error("r.Match(pktNoMatch) = true; want false")
+	}
 }
 
 func TestNewReturnsErrorOnInvalidPayloadPattern(t *testing.T) {
-	RegisterTestingT(t)
-
 	_, err := NewRule(WithPayload(`[`))
-	Expect(err).To(HaveOccurred())
+	if err == nil {
+		t.Fatal("NewRule(WithPayload([)) expected error, got nil")
+	}
 }
 
 func TestActionString(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []struct {
 		action   Action
 		expected string
@@ -257,14 +282,14 @@ func TestActionString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.expected, func(t *testing.T) {
-			Expect(tt.action.String()).To(Equal(tt.expected))
+			if got := tt.action.String(); got != tt.expected {
+				t.Errorf("action.String() = %q; want %q", got, tt.expected)
+			}
 		})
 	}
 }
 
 func TestActionValidate(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []struct {
 		name      string
 		action    Action
@@ -281,17 +306,19 @@ func TestActionValidate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.action.Validate()
 			if tt.shouldErr {
-				Expect(err).To(HaveOccurred())
+				if err == nil {
+					t.Errorf("action.Validate() expected error, got nil")
+				}
 			} else {
-				Expect(err).ToNot(HaveOccurred())
+				if err != nil {
+					t.Errorf("action.Validate() unexpected error: %v", err)
+				}
 			}
 		})
 	}
 }
 
 func TestNewReturnsErrorOnInvalidCIDR(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []string{
 		"invalid-cidr",
 		"256.256.256.256/32", // Invalid IP
@@ -301,26 +328,34 @@ func TestNewReturnsErrorOnInvalidCIDR(t *testing.T) {
 	for _, cidr := range tests {
 		t.Run(fmt.Sprintf("should error on %s (src)", cidr), func(t *testing.T) {
 			_, err := NewRule(WithSrcNet(cidr))
-			Expect(err).To(HaveOccurred())
+			if err == nil {
+				t.Errorf("NewRule(WithSrcNet(%q)) expected error, got nil", cidr)
+			}
 		})
 		t.Run(fmt.Sprintf("should error on %s (dst)", cidr), func(t *testing.T) {
 			_, err := NewRule(WithDstNet(cidr))
-			Expect(err).To(HaveOccurred())
+			if err == nil {
+				t.Errorf("NewRule(WithDstNet(%q)) expected error, got nil", cidr)
+			}
 		})
 	}
 }
 
 func TestNewRuleSupportsSingleIPAddress(t *testing.T) {
-	RegisterTestingT(t)
-
 	r, err := NewRule(WithSrcNet("10.10.10.1"), WithAction(Accept))
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("NewRule unexpected error: %v", err)
+	}
 
 	pktMatch := mustNewPacket(t, packet.WithSrcAddr("10.10.10.1"))
 	pktNoMatch := mustNewPacket(t, packet.WithSrcAddr("10.10.10.2"))
 
-	Expect(r.Match(pktMatch)).To(BeTrue())
-	Expect(r.Match(pktNoMatch)).To(BeFalse())
+	if !r.Match(pktMatch) {
+		t.Error("r.Match(pktMatch) = false; want true")
+	}
+	if r.Match(pktNoMatch) {
+		t.Error("r.Match(pktNoMatch) = true; want false")
+	}
 }
 
 func makeCommonRules(srcNet, dstNet string, p proto.Proto, srcPort, dstPort uint16) []*Rule {
@@ -357,8 +392,6 @@ func makeCommonRules(srcNet, dstNet string, p proto.Proto, srcPort, dstPort uint
 }
 
 func TestParseAction(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []struct {
 		input     string
 		expected  Action
@@ -382,18 +415,22 @@ func TestParseAction(t *testing.T) {
 		t.Run(tt.input, func(t *testing.T) {
 			action, err := ParseAction(tt.input)
 			if tt.shouldErr {
-				Expect(err).To(HaveOccurred())
+				if err == nil {
+					t.Errorf("ParseAction(%q) expected error, got nil", tt.input)
+				}
 			} else {
-				Expect(err).ToNot(HaveOccurred())
-				Expect(action).To(Equal(tt.expected))
+				if err != nil {
+					t.Errorf("ParseAction(%q) unexpected error: %v", tt.input, err)
+				}
+				if action != tt.expected {
+					t.Errorf("ParseAction(%q) = %v; want %v", tt.input, action, tt.expected)
+				}
 			}
 		})
 	}
 }
 
 func TestRulePacketCounter(t *testing.T) {
-	RegisterTestingT(t)
-
 	rule := mustNew(WithProto(proto.UDP), WithDstPort(53))
 	pktMatch := mustNewPacket(t,
 		packet.WithSrcAddr("10.10.10.1"), packet.WithSrcPort(55555), packet.WithProto(proto.UDP),
@@ -405,32 +442,50 @@ func TestRulePacketCounter(t *testing.T) {
 	)
 
 	// Initially, packet count should be 0
-	Expect(rule.PacketCount()).To(Equal(uint64(0)))
+	if got := rule.PacketCount(); got != 0 {
+		t.Errorf("rule.PacketCount() = %d; want 0", got)
+	}
 
 	// Match a packet, count should increment to 1
-	Expect(rule.Match(pktMatch)).To(BeTrue())
-	Expect(rule.PacketCount()).To(Equal(uint64(1)))
+	if !rule.Match(pktMatch) {
+		t.Error("expected match")
+	}
+	if got := rule.PacketCount(); got != 1 {
+		t.Errorf("rule.PacketCount() = %d; want 1", got)
+	}
 
 	// Match another packet, count should increment to 2
-	Expect(rule.Match(pktMatch)).To(BeTrue())
-	Expect(rule.PacketCount()).To(Equal(uint64(2)))
+	if !rule.Match(pktMatch) {
+		t.Error("expected match")
+	}
+	if got := rule.PacketCount(); got != 2 {
+		t.Errorf("rule.PacketCount() = %d; want 2", got)
+	}
 
 	// Non-matching packet should not increment counter
-	Expect(rule.Match(pktNoMatch)).To(BeFalse())
-	Expect(rule.PacketCount()).To(Equal(uint64(2)))
+	if rule.Match(pktNoMatch) {
+		t.Error("expected no match")
+	}
+	if got := rule.PacketCount(); got != 2 {
+		t.Errorf("rule.PacketCount() = %d; want 2", got)
+	}
 
 	// Reset counter
 	rule.ResetPacketCount()
-	Expect(rule.PacketCount()).To(Equal(uint64(0)))
+	if got := rule.PacketCount(); got != 0 {
+		t.Errorf("rule.PacketCount() = %d; want 0", got)
+	}
 
 	// Match after reset should increment from 0
-	Expect(rule.Match(pktMatch)).To(BeTrue())
-	Expect(rule.PacketCount()).To(Equal(uint64(1)))
+	if !rule.Match(pktMatch) {
+		t.Error("expected match")
+	}
+	if got := rule.PacketCount(); got != 1 {
+		t.Errorf("rule.PacketCount() = %d; want 1", got)
+	}
 }
 
 func TestRulePacketCounterConcurrency(t *testing.T) {
-	RegisterTestingT(t)
-
 	rule := mustNew(WithProto(proto.UDP), WithDstPort(53))
 	pktMatch := mustNewPacket(t,
 		packet.WithSrcAddr("10.10.10.1"), packet.WithSrcPort(55555), packet.WithProto(proto.UDP),
@@ -457,12 +512,12 @@ func TestRulePacketCounterConcurrency(t *testing.T) {
 	wg.Wait()
 
 	// Verify the counter is correct
-	Expect(rule.PacketCount()).To(Equal(expectedCount))
+	if got := rule.PacketCount(); got != expectedCount {
+		t.Errorf("rule.PacketCount() = %d; want %d", got, expectedCount)
+	}
 }
 
 func TestRuleByteCounter(t *testing.T) {
-	RegisterTestingT(t)
-
 	rule := mustNew(WithProto(proto.UDP), WithDstPort(53))
 	pktMatch := mustNewPacket(t,
 		packet.WithSrcAddr("10.10.10.1"), packet.WithSrcPort(55555), packet.WithProto(proto.UDP),
@@ -476,50 +531,72 @@ func TestRuleByteCounter(t *testing.T) {
 	)
 
 	// Initially, byte count should be 0
-	Expect(rule.ByteCount()).To(Equal(uint64(0)))
+	if got := rule.ByteCount(); got != 0 {
+		t.Errorf("rule.ByteCount() = %d; want 0", got)
+	}
 
 	// Match a packet, byte count should increase by its full size, not its
 	// (shorter, or possibly absent) payload length
-	Expect(rule.Match(pktMatch)).To(BeTrue())
-	Expect(rule.ByteCount()).To(Equal(uint64(74)))
+	if !rule.Match(pktMatch) {
+		t.Error("expected match")
+	}
+	if got := rule.ByteCount(); got != 74 {
+		t.Errorf("rule.ByteCount() = %d; want 74", got)
+	}
 
 	// Match another packet, byte count should accumulate
-	Expect(rule.Match(pktMatch)).To(BeTrue())
-	Expect(rule.ByteCount()).To(Equal(uint64(148)))
+	if !rule.Match(pktMatch) {
+		t.Error("expected match")
+	}
+	if got := rule.ByteCount(); got != 148 {
+		t.Errorf("rule.ByteCount() = %d; want 148", got)
+	}
 
 	// Non-matching packet should not add to the byte count
-	Expect(rule.Match(pktNoMatch)).To(BeFalse())
-	Expect(rule.ByteCount()).To(Equal(uint64(148)))
+	if rule.Match(pktNoMatch) {
+		t.Error("expected no match")
+	}
+	if got := rule.ByteCount(); got != 148 {
+		t.Errorf("rule.ByteCount() = %d; want 148", got)
+	}
 
 	// Reset counter
 	rule.ResetByteCount()
-	Expect(rule.ByteCount()).To(Equal(uint64(0)))
+	if got := rule.ByteCount(); got != 0 {
+		t.Errorf("rule.ByteCount() = %d; want 0", got)
+	}
 
 	// Match after reset should accumulate from 0
-	Expect(rule.Match(pktMatch)).To(BeTrue())
-	Expect(rule.ByteCount()).To(Equal(uint64(74)))
+	if !rule.Match(pktMatch) {
+		t.Error("expected match")
+	}
+	if got := rule.ByteCount(); got != 74 {
+		t.Errorf("rule.ByteCount() = %d; want 74", got)
+	}
 }
 
 func TestRuleWithName(t *testing.T) {
-	RegisterTestingT(t)
-
 	// Rule without name has an empty Name
 	ruleNoName := mustNew(WithAction(Accept), WithProto(proto.TCP), WithDstPort(80))
-	Expect(ruleNoName.Name).To(Equal(""))
+	if ruleNoName.Name != "" {
+		t.Errorf("ruleNoName.Name = %q; want empty string", ruleNoName.Name)
+	}
 
 	// Rule with name should keep it
 	ruleWithName := mustNew(WithAction(Accept), WithProto(proto.TCP), WithDstPort(80), WithName("allow-http"))
-	Expect(ruleWithName.Name).To(Equal("allow-http"))
+	if ruleWithName.Name != "allow-http" {
+		t.Errorf("ruleWithName.Name = %q; want allow-http", ruleWithName.Name)
+	}
 
 	// Setting Name directly should also work
 	ruleDirectName := mustNew(WithAction(Drop))
 	ruleDirectName.Name = "block-all"
-	Expect(ruleDirectName.Name).To(Equal("block-all"))
+	if ruleDirectName.Name != "block-all" {
+		t.Errorf("ruleDirectName.Name = %q; want block-all", ruleDirectName.Name)
+	}
 }
 
 func TestNegatedRuleMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	// Packet that will be matched against negated rules
 	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.10.10.1"), packet.WithSrcPort(55555), packet.WithProto(proto.UDP),
@@ -528,43 +605,61 @@ func TestNegatedRuleMatch(t *testing.T) {
 
 	// Negated protocol: should NOT match proto 17, but SHOULD match everything else
 	ruleNotProto := mustNew(WithNotProto(proto.UDP))
-	Expect(ruleNotProto.Match(pkt)).To(BeFalse())
+	if ruleNotProto.Match(pkt) {
+		t.Error("ruleNotProto.Match(pkt) = true; want false")
+	}
 
 	ruleNotProtoOther := mustNew(WithNotProto(proto.TCP))
-	Expect(ruleNotProtoOther.Match(pkt)).To(BeTrue())
+	if !ruleNotProtoOther.Match(pkt) {
+		t.Error("ruleNotProtoOther.Match(pkt) = false; want true")
+	}
 
 	// Negated source port: should NOT match src port 55555
 	ruleNotSrcPort := mustNew(WithNotSrcPort(55555))
-	Expect(ruleNotSrcPort.Match(pkt)).To(BeFalse())
+	if ruleNotSrcPort.Match(pkt) {
+		t.Error("ruleNotSrcPort.Match(pkt) = true; want false")
+	}
 
 	ruleNotSrcPortOther := mustNew(WithNotSrcPort(12345))
-	Expect(ruleNotSrcPortOther.Match(pkt)).To(BeTrue())
+	if !ruleNotSrcPortOther.Match(pkt) {
+		t.Error("ruleNotSrcPortOther.Match(pkt) = false; want true")
+	}
 
 	// Negated destination port: should NOT match dst port 53
 	ruleNotDstPort := mustNew(WithNotDstPort(53))
-	Expect(ruleNotDstPort.Match(pkt)).To(BeFalse())
+	if ruleNotDstPort.Match(pkt) {
+		t.Error("ruleNotDstPort.Match(pkt) = true; want false")
+	}
 
 	ruleNotDstPortOther := mustNew(WithNotDstPort(80))
-	Expect(ruleNotDstPortOther.Match(pkt)).To(BeTrue())
+	if !ruleNotDstPortOther.Match(pkt) {
+		t.Error("ruleNotDstPortOther.Match(pkt) = false; want true")
+	}
 
 	// Negated source network: should NOT match 10.10.10.0/24
 	ruleNotSrcNet := mustNew(WithNotSrcNet("10.10.10.0/24"))
-	Expect(ruleNotSrcNet.Match(pkt)).To(BeFalse())
+	if ruleNotSrcNet.Match(pkt) {
+		t.Error("ruleNotSrcNet.Match(pkt) = true; want false")
+	}
 
 	ruleNotSrcNetOther := mustNew(WithNotSrcNet("192.168.0.0/16"))
-	Expect(ruleNotSrcNetOther.Match(pkt)).To(BeTrue())
+	if !ruleNotSrcNetOther.Match(pkt) {
+		t.Error("ruleNotSrcNetOther.Match(pkt) = false; want true")
+	}
 
 	// Negated destination network: should NOT match 1.1.1.1/32
 	ruleNotDstNet := mustNew(WithNotDstNet("1.1.1.1/32"))
-	Expect(ruleNotDstNet.Match(pkt)).To(BeFalse())
+	if ruleNotDstNet.Match(pkt) {
+		t.Error("ruleNotDstNet.Match(pkt) = true; want false")
+	}
 
 	ruleNotDstNetOther := mustNew(WithNotDstNet("2.2.2.2/32"))
-	Expect(ruleNotDstNetOther.Match(pkt)).To(BeTrue())
+	if !ruleNotDstNetOther.Match(pkt) {
+		t.Error("ruleNotDstNetOther.Match(pkt) = false; want true")
+	}
 }
 
 func TestNegatedRuleConfig(t *testing.T) {
-	RegisterTestingT(t)
-
 	// Valid negated rule — negated options wrap a shared matcher type in
 	// matcher.Negated rather than using a dedicated Not* type.
 	rule := mustNew(
@@ -575,28 +670,38 @@ func TestNegatedRuleConfig(t *testing.T) {
 		WithNotSrcNet("10.0.0.0/8"),
 		WithNotDstNet("192.168.0.0/16"),
 	)
-	_, ok := findMatcher[*matcher.ProtoMatcher](rule, true)
-	Expect(ok).To(BeTrue())
-	_, ok = findSrcSet(rule, true, set.TypePort)
-	Expect(ok).To(BeTrue())
-	_, ok = findDstSet(rule, true, set.TypePort)
-	Expect(ok).To(BeTrue())
-	_, ok = findSrcSet(rule, true, set.TypeIP)
-	Expect(ok).To(BeTrue())
-	_, ok = findDstSet(rule, true, set.TypeIP)
-	Expect(ok).To(BeTrue())
+	if _, ok := findMatcher[*matcher.ProtoMatcher](rule, true); !ok {
+		t.Error("expected negated ProtoMatcher")
+	}
+	if _, ok := findSrcSet(rule, true, set.TypePort); !ok {
+		t.Error("expected negated SrcSet Port")
+	}
+	if _, ok := findDstSet(rule, true, set.TypePort); !ok {
+		t.Error("expected negated DstSet Port")
+	}
+	if _, ok := findSrcSet(rule, true, set.TypeIP); !ok {
+		t.Error("expected negated SrcSet IP")
+	}
+	if _, ok := findDstSet(rule, true, set.TypeIP); !ok {
+		t.Error("expected negated DstSet IP")
+	}
 	// Positive (non-negated) matchers should be absent when only negated
 	// values are specified.
-	_, ok = findMatcher[*matcher.ProtoMatcher](rule, false)
-	Expect(ok).To(BeFalse())
-	_, ok = findSrcSet(rule, false, set.TypePort)
-	Expect(ok).To(BeFalse())
-	_, ok = findDstSet(rule, false, set.TypePort)
-	Expect(ok).To(BeFalse())
-	_, ok = findSrcSet(rule, false, set.TypeIP)
-	Expect(ok).To(BeFalse())
-	_, ok = findDstSet(rule, false, set.TypeIP)
-	Expect(ok).To(BeFalse())
+	if _, ok := findMatcher[*matcher.ProtoMatcher](rule, false); ok {
+		t.Error("expected no positive ProtoMatcher")
+	}
+	if _, ok := findSrcSet(rule, false, set.TypePort); ok {
+		t.Error("expected no positive SrcSet Port")
+	}
+	if _, ok := findDstSet(rule, false, set.TypePort); ok {
+		t.Error("expected no positive DstSet Port")
+	}
+	if _, ok := findSrcSet(rule, false, set.TypeIP); ok {
+		t.Error("expected no positive SrcSet IP")
+	}
+	if _, ok := findDstSet(rule, false, set.TypeIP); ok {
+		t.Error("expected no positive DstSet IP")
+	}
 
 	// Positive and negated matchers can be combined on the same rule
 	ruleCombined := mustNew(
@@ -612,79 +717,111 @@ func TestNegatedRuleConfig(t *testing.T) {
 		WithDstNet("1.1.1.0/24"),
 		WithNotDstNet("1.1.1.100/32"),
 	)
-	_, ok = findMatcher[*matcher.ProtoMatcher](ruleCombined, false)
-	Expect(ok).To(BeTrue())
-	_, ok = findMatcher[*matcher.ProtoMatcher](ruleCombined, true)
-	Expect(ok).To(BeTrue())
-	_, ok = findSrcSet(ruleCombined, false, set.TypePort)
-	Expect(ok).To(BeTrue())
-	_, ok = findSrcSet(ruleCombined, true, set.TypePort)
-	Expect(ok).To(BeTrue())
-	_, ok = findDstSet(ruleCombined, false, set.TypePort)
-	Expect(ok).To(BeTrue())
-	_, ok = findDstSet(ruleCombined, true, set.TypePort)
-	Expect(ok).To(BeTrue())
-	_, ok = findSrcSet(ruleCombined, false, set.TypeIP)
-	Expect(ok).To(BeTrue())
-	_, ok = findSrcSet(ruleCombined, true, set.TypeIP)
-	Expect(ok).To(BeTrue())
-	_, ok = findDstSet(ruleCombined, false, set.TypeIP)
-	Expect(ok).To(BeTrue())
-	_, ok = findDstSet(ruleCombined, true, set.TypeIP)
-	Expect(ok).To(BeTrue())
+	if _, ok := findMatcher[*matcher.ProtoMatcher](ruleCombined, false); !ok {
+		t.Error("expected positive ProtoMatcher")
+	}
+	if _, ok := findMatcher[*matcher.ProtoMatcher](ruleCombined, true); !ok {
+		t.Error("expected negated ProtoMatcher")
+	}
+	if _, ok := findSrcSet(ruleCombined, false, set.TypePort); !ok {
+		t.Error("expected positive SrcSet Port")
+	}
+	if _, ok := findSrcSet(ruleCombined, true, set.TypePort); !ok {
+		t.Error("expected negated SrcSet Port")
+	}
+	if _, ok := findDstSet(ruleCombined, false, set.TypePort); !ok {
+		t.Error("expected positive DstSet Port")
+	}
+	if _, ok := findDstSet(ruleCombined, true, set.TypePort); !ok {
+		t.Error("expected negated DstSet Port")
+	}
+	if _, ok := findSrcSet(ruleCombined, false, set.TypeIP); !ok {
+		t.Error("expected positive SrcSet IP")
+	}
+	if _, ok := findSrcSet(ruleCombined, true, set.TypeIP); !ok {
+		t.Error("expected negated SrcSet IP")
+	}
+	if _, ok := findDstSet(ruleCombined, false, set.TypeIP); !ok {
+		t.Error("expected positive DstSet IP")
+	}
+	if _, ok := findDstSet(ruleCombined, true, set.TypeIP); !ok {
+		t.Error("expected negated DstSet IP")
+	}
 }
 
 func TestCombinedPositiveAndNegativeRuleMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	// Rule matches src in 10.0.0.0/8 but NOT in 10.10.0.0/16
 	rule := mustNew(WithSrcNet("10.0.0.0/8"), WithNotSrcNet("10.10.0.0/16"))
 
 	// In 10.0.0.0/8, not in 10.10.0.0/16 → should match
 	pktMatch := mustNewPacket(t, packet.WithSrcAddr("10.1.2.3"))
-	Expect(rule.Match(pktMatch)).To(BeTrue())
+	if !rule.Match(pktMatch) {
+		t.Error("rule.Match(pktMatch) = false; want true")
+	}
 
 	// In 10.0.0.0/8 AND in 10.10.0.0/16 → should not match (excluded by neg)
 	pktNotHit := mustNewPacket(t, packet.WithSrcAddr("10.10.0.5"))
-	Expect(rule.Match(pktNotHit)).To(BeFalse())
+	if rule.Match(pktNotHit) {
+		t.Error("rule.Match(pktNotHit) = true; want false")
+	}
 
 	// Not in 10.0.0.0/8 at all → should not match (excluded by positive)
 	pktOutside := mustNewPacket(t, packet.WithSrcAddr("172.16.0.1"))
-	Expect(rule.Match(pktOutside)).To(BeFalse())
+	if rule.Match(pktOutside) {
+		t.Error("rule.Match(pktOutside) = true; want false")
+	}
 
 	// Rule matches proto 17 AND NOT proto 6 (proto 6 is excluded, proto 17 is required)
 	ruleProto := mustNew(WithProto(proto.UDP), WithNotProto(proto.TCP))
 	pktProto17 := mustNewPacket(t, packet.WithProto(proto.UDP))
 	pktProto6 := mustNewPacket(t, packet.WithProto(proto.TCP))
 	pktProto1 := mustNewPacket(t, packet.WithProto(proto.ICMP))
-	Expect(ruleProto.Match(pktProto17)).To(BeTrue())
-	Expect(ruleProto.Match(pktProto6)).To(BeFalse())
-	Expect(ruleProto.Match(pktProto1)).To(BeFalse()) // not in positive set
+	if !ruleProto.Match(pktProto17) {
+		t.Error("ruleProto.Match(pktProto17) = false; want true")
+	}
+	if ruleProto.Match(pktProto6) {
+		t.Error("ruleProto.Match(pktProto6) = true; want false")
+	}
+	if ruleProto.Match(pktProto1) {
+		t.Error("ruleProto.Match(pktProto1) = true; want false")
+	}
 }
 
 func TestWithSetNilFails(t *testing.T) {
-	RegisterTestingT(t)
-
 	r, err := NewRule(WithSrcSet(nil))
-	Expect(err).To(HaveOccurred())
-	Expect(r).To(BeNil())
+	if err == nil {
+		t.Fatal("NewRule(WithSrcSet(nil)) expected error, got nil")
+	}
+	if r != nil {
+		t.Errorf("expected nil rule, got %v", r)
+	}
 
 	r, err = NewRule(WithNotSrcSet(nil))
-	Expect(err).To(HaveOccurred())
-	Expect(r).To(BeNil())
+	if err == nil {
+		t.Fatal("NewRule(WithNotSrcSet(nil)) expected error, got nil")
+	}
+	if r != nil {
+		t.Errorf("expected nil rule, got %v", r)
+	}
 
 	r, err = NewRule(WithDstSet(nil))
-	Expect(err).To(HaveOccurred())
-	Expect(r).To(BeNil())
+	if err == nil {
+		t.Fatal("NewRule(WithDstSet(nil)) expected error, got nil")
+	}
+	if r != nil {
+		t.Errorf("expected nil rule, got %v", r)
+	}
 
 	r, err = NewRule(WithNotDstSet(nil))
-	Expect(err).To(HaveOccurred())
-	Expect(r).To(BeNil())
+	if err == nil {
+		t.Fatal("NewRule(WithNotDstSet(nil)) expected error, got nil")
+	}
+	if r != nil {
+		t.Errorf("expected nil rule, got %v", r)
+	}
 }
 
 func TestNamedSetRuleMatchWithNamedPortString(t *testing.T) {
-	RegisterTestingT(t)
-
 	// Build a port set using well-known port names as strings.
 	portSet := set.NewPortSet()
 	_ = portSet.Add("http")
@@ -695,14 +832,18 @@ func TestNamedSetRuleMatchWithNamedPortString(t *testing.T) {
 	pktOther := mustNewPacket(t, packet.WithDstPort(8080))
 
 	r := mustNew(WithDstSet(portSet))
-	Expect(r.Match(pktHTTP)).To(BeTrue())
-	Expect(r.Match(pktHTTPS)).To(BeTrue())
-	Expect(r.Match(pktOther)).To(BeFalse())
+	if !r.Match(pktHTTP) {
+		t.Error("r.Match(pktHTTP) = false; want true")
+	}
+	if !r.Match(pktHTTPS) {
+		t.Error("r.Match(pktHTTPS) = false; want true")
+	}
+	if r.Match(pktOther) {
+		t.Error("r.Match(pktOther) = true; want false")
+	}
 }
 
 func TestNamedSetRuleMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	ipSet := set.NewIPSet()
 	_ = ipSet.Add("10.0.0.0/8")
 
@@ -723,14 +864,18 @@ func TestNamedSetRuleMatch(t *testing.T) {
 	)
 
 	r := mustNew(WithSrcSet(ipSet), WithDstSet(portSet))
-	Expect(r.Match(pktMatch)).To(BeTrue())
-	Expect(r.Match(pktNoMatchIP)).To(BeFalse())
-	Expect(r.Match(pktNoMatchPort)).To(BeFalse())
+	if !r.Match(pktMatch) {
+		t.Error("r.Match(pktMatch) = false; want true")
+	}
+	if r.Match(pktNoMatchIP) {
+		t.Error("r.Match(pktNoMatchIP) = true; want false")
+	}
+	if r.Match(pktNoMatchPort) {
+		t.Error("r.Match(pktNoMatchPort) = true; want false")
+	}
 }
 
 func TestNamedSetRuleMatchDstIPSet(t *testing.T) {
-	RegisterTestingT(t)
-
 	ipSet := set.NewIPSet()
 	_ = ipSet.Add("1.1.1.0/24")
 
@@ -742,13 +887,15 @@ func TestNamedSetRuleMatchDstIPSet(t *testing.T) {
 	)
 
 	r := mustNew(WithDstSet(ipSet))
-	Expect(r.Match(pktMatch)).To(BeTrue())
-	Expect(r.Match(pktNoMatch)).To(BeFalse())
+	if !r.Match(pktMatch) {
+		t.Error("r.Match(pktMatch) = false; want true")
+	}
+	if r.Match(pktNoMatch) {
+		t.Error("r.Match(pktNoMatch) = true; want false")
+	}
 }
 
 func TestNamedSetRuleMatchSrcPortSet(t *testing.T) {
-	RegisterTestingT(t)
-
 	portSet := set.NewPortSet()
 	_ = portSet.Add(uint16(55555))
 
@@ -760,13 +907,15 @@ func TestNamedSetRuleMatchSrcPortSet(t *testing.T) {
 	)
 
 	r := mustNew(WithSrcSet(portSet))
-	Expect(r.Match(pktMatch)).To(BeTrue())
-	Expect(r.Match(pktNoMatch)).To(BeFalse())
+	if !r.Match(pktMatch) {
+		t.Error("r.Match(pktMatch) = false; want true")
+	}
+	if r.Match(pktNoMatch) {
+		t.Error("r.Match(pktNoMatch) = true; want false")
+	}
 }
 
 func TestNegatedNamedSetRuleMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	// NotSrcIPSet: packets whose source is in the set should NOT match.
 	srcIPSet := set.NewIPSet()
 	_ = srcIPSet.Add("10.0.0.0/8")
@@ -774,8 +923,12 @@ func TestNegatedNamedSetRuleMatch(t *testing.T) {
 	rNegSrc := mustNew(WithNotSrcSet(srcIPSet))
 	pktInSet := mustNewPacket(t, packet.WithSrcAddr("10.1.2.3"))
 	pktOutSet := mustNewPacket(t, packet.WithSrcAddr("192.168.1.1"))
-	Expect(rNegSrc.Match(pktInSet)).To(BeFalse())
-	Expect(rNegSrc.Match(pktOutSet)).To(BeTrue())
+	if rNegSrc.Match(pktInSet) {
+		t.Error("rNegSrc.Match(pktInSet) = true; want false")
+	}
+	if !rNegSrc.Match(pktOutSet) {
+		t.Error("rNegSrc.Match(pktOutSet) = false; want true")
+	}
 
 	// NotDstIPSet: packets whose destination is in the set should NOT match.
 	dstIPSet := set.NewIPSet()
@@ -784,8 +937,12 @@ func TestNegatedNamedSetRuleMatch(t *testing.T) {
 	rNegDst := mustNew(WithNotDstSet(dstIPSet))
 	pktDstIn := mustNewPacket(t, packet.WithDstAddr("1.1.1.1"))
 	pktDstOut := mustNewPacket(t, packet.WithDstAddr("2.2.2.2"))
-	Expect(rNegDst.Match(pktDstIn)).To(BeFalse())
-	Expect(rNegDst.Match(pktDstOut)).To(BeTrue())
+	if rNegDst.Match(pktDstIn) {
+		t.Error("rNegDst.Match(pktDstIn) = true; want false")
+	}
+	if !rNegDst.Match(pktDstOut) {
+		t.Error("rNegDst.Match(pktDstOut) = false; want true")
+	}
 
 	// NotSrcPortSet: packets whose source port is in the set should NOT match.
 	srcPortSet := set.NewPortSet()
@@ -794,8 +951,12 @@ func TestNegatedNamedSetRuleMatch(t *testing.T) {
 	rNotSrcPort := mustNew(WithNotSrcSet(srcPortSet))
 	pktSrcPortIn := mustNewPacket(t, packet.WithSrcPort(55555))
 	pktSrcPortOut := mustNewPacket(t, packet.WithSrcPort(12345))
-	Expect(rNotSrcPort.Match(pktSrcPortIn)).To(BeFalse())
-	Expect(rNotSrcPort.Match(pktSrcPortOut)).To(BeTrue())
+	if rNotSrcPort.Match(pktSrcPortIn) {
+		t.Error("rNotSrcPort.Match(pktSrcPortIn) = true; want false")
+	}
+	if !rNotSrcPort.Match(pktSrcPortOut) {
+		t.Error("rNotSrcPort.Match(pktSrcPortOut) = false; want true")
+	}
 
 	// NotDstPortSet: packets whose destination port is in the set should NOT match.
 	dstPortSet := set.NewPortSet()
@@ -804,13 +965,15 @@ func TestNegatedNamedSetRuleMatch(t *testing.T) {
 	rNotDstPort := mustNew(WithNotDstSet(dstPortSet))
 	pktDstPortIn := mustNewPacket(t, packet.WithDstPort(80))
 	pktDstPortOut := mustNewPacket(t, packet.WithDstPort(443))
-	Expect(rNotDstPort.Match(pktDstPortIn)).To(BeFalse())
-	Expect(rNotDstPort.Match(pktDstPortOut)).To(BeTrue())
+	if rNotDstPort.Match(pktDstPortIn) {
+		t.Error("rNotDstPort.Match(pktDstPortIn) = true; want false")
+	}
+	if !rNotDstPort.Match(pktDstPortOut) {
+		t.Error("rNotDstPort.Match(pktDstPortOut) = false; want true")
+	}
 }
 
 func TestCombinedPositiveAndNegativeNamedSetMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	// Match src in 10.0.0.0/8 named set but NOT in 10.10.0.0/16 named set.
 	posSet := set.NewIPSet()
 	_ = posSet.Add("10.0.0.0/8")
@@ -822,18 +985,22 @@ func TestCombinedPositiveAndNegativeNamedSetMatch(t *testing.T) {
 
 	// In 10.0.0.0/8, not in 10.10.0.0/16 → should match
 	pktMatch := mustNewPacket(t, packet.WithSrcAddr("10.1.2.3"))
-	Expect(r.Match(pktMatch)).To(BeTrue())
+	if !r.Match(pktMatch) {
+		t.Error("r.Match(pktMatch) = false; want true")
+	}
 	// In 10.0.0.0/8 AND in 10.10.0.0/16 → excluded by neg
 	pktNotHit := mustNewPacket(t, packet.WithSrcAddr("10.10.0.5"))
-	Expect(r.Match(pktNotHit)).To(BeFalse())
+	if r.Match(pktNotHit) {
+		t.Error("r.Match(pktNotHit) = true; want false")
+	}
 	// Not in 10.0.0.0/8 at all → excluded by positive
 	pktOutside := mustNewPacket(t, packet.WithSrcAddr("172.16.0.1"))
-	Expect(r.Match(pktOutside)).To(BeFalse())
+	if r.Match(pktOutside) {
+		t.Error("r.Match(pktOutside) = true; want false")
+	}
 }
 
 func TestIPPortSetRuleMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	srcSet := set.NewIPPortSet()
 	_ = srcSet.Add("10.0.0.0/8,1000-2000")
 	dstSet := set.NewIPPortSet()
@@ -845,18 +1012,20 @@ func TestIPPortSetRuleMatch(t *testing.T) {
 		packet.WithSrcAddr("10.1.2.3"), packet.WithSrcPort(1500), packet.WithProto(proto.TCP),
 		packet.WithDstAddr("1.1.1.1"), packet.WithDstPort(443),
 	)
-	Expect(r.Match(pktMatch)).To(BeTrue())
+	if !r.Match(pktMatch) {
+		t.Error("r.Match(pktMatch) = false; want true")
+	}
 
 	pktNoMatch := mustNewPacket(t,
 		packet.WithSrcAddr("10.1.2.3"), packet.WithSrcPort(999), packet.WithProto(proto.TCP),
 		packet.WithDstAddr("1.1.1.1"), packet.WithDstPort(443),
 	)
-	Expect(r.Match(pktNoMatch)).To(BeFalse())
+	if r.Match(pktNoMatch) {
+		t.Error("r.Match(pktNoMatch) = true; want false")
+	}
 }
 
 func TestNegatedIPPortSetRuleMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	negSet := set.NewIPPortSet()
 	_ = negSet.Add("10.0.0.0/8,53")
 
@@ -867,139 +1036,189 @@ func TestNegatedIPPortSetRuleMatch(t *testing.T) {
 		packet.WithSrcAddr("10.1.2.3"), packet.WithSrcPort(53), packet.WithProto(proto.UDP),
 		packet.WithDstAddr("10.2.3.4"), packet.WithDstPort(53),
 	)
-	Expect(r.Match(pkt1)).To(BeFalse())
+	if r.Match(pkt1) {
+		t.Error("r.Match(pkt1) = true; want false")
+	}
 
 	// src 10.1.2.3:53 is excluded; any protocol is excluded now
 	pkt2 := mustNewPacket(t,
 		packet.WithSrcAddr("10.1.2.3"), packet.WithSrcPort(53), packet.WithProto(proto.TCP),
 		packet.WithDstAddr("10.2.3.4"), packet.WithDstPort(53),
 	)
-	Expect(r.Match(pkt2)).To(BeFalse())
+	if r.Match(pkt2) {
+		t.Error("r.Match(pkt2) = true; want false")
+	}
 
 	// src port not in set → src passes; dst also excluded → not matched
 	pkt3 := mustNewPacket(t,
 		packet.WithSrcAddr("10.1.2.3"), packet.WithSrcPort(80), packet.WithProto(proto.TCP),
 		packet.WithDstAddr("10.2.3.4"), packet.WithDstPort(53),
 	)
-	Expect(r.Match(pkt3)).To(BeFalse())
+	if r.Match(pkt3) {
+		t.Error("r.Match(pkt3) = true; want false")
+	}
 
 	// neither src nor dst in set → matched
 	pkt4 := mustNewPacket(t,
 		packet.WithSrcAddr("10.1.2.3"), packet.WithSrcPort(80), packet.WithProto(proto.TCP),
 		packet.WithDstAddr("10.2.3.4"), packet.WithDstPort(80),
 	)
-	Expect(r.Match(pkt4)).To(BeTrue())
+	if !r.Match(pkt4) {
+		t.Error("r.Match(pkt4) = false; want true")
+	}
 }
 
 func TestIngressIfaceMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	pktEth0 := mustNewPacket(t, packet.WithSrcAddr("10.0.0.1"), packet.WithIngressIface("eth0"))
 	pktEth1 := mustNewPacket(t, packet.WithSrcAddr("10.0.0.2"), packet.WithIngressIface("eth1"))
 	pktNoIface := mustNewPacket(t, packet.WithSrcAddr("10.0.0.3"))
 
 	// Rule matches only eth0
 	r := mustNew(WithSrcIface("eth0"))
-	Expect(r.Match(pktEth0)).To(BeTrue())
-	Expect(r.Match(pktEth1)).To(BeFalse())
-	Expect(r.Match(pktNoIface)).To(BeFalse())
+	if !r.Match(pktEth0) {
+		t.Error("r.Match(pktEth0) = false; want true")
+	}
+	if r.Match(pktEth1) {
+		t.Error("r.Match(pktEth1) = true; want false")
+	}
+	if r.Match(pktNoIface) {
+		t.Error("r.Match(pktNoIface) = true; want false")
+	}
 
 	// Rule matches eth0 or eth1
 	rMulti := mustNew(WithSrcIface("eth0"), WithSrcIface("eth1"))
-	Expect(rMulti.Match(pktEth0)).To(BeTrue())
-	Expect(rMulti.Match(pktEth1)).To(BeTrue())
-	Expect(rMulti.Match(pktNoIface)).To(BeFalse())
+	if !rMulti.Match(pktEth0) {
+		t.Error("rMulti.Match(pktEth0) = false; want true")
+	}
+	if !rMulti.Match(pktEth1) {
+		t.Error("rMulti.Match(pktEth1) = false; want true")
+	}
+	if rMulti.Match(pktNoIface) {
+		t.Error("rMulti.Match(pktNoIface) = true; want false")
+	}
 
 	// Rule with no interface constraint matches all
 	rAny := mustNew()
-	Expect(rAny.Match(pktEth0)).To(BeTrue())
-	Expect(rAny.Match(pktNoIface)).To(BeTrue())
+	if !rAny.Match(pktEth0) {
+		t.Error("rAny.Match(pktEth0) = false; want true")
+	}
+	if !rAny.Match(pktNoIface) {
+		t.Error("rAny.Match(pktNoIface) = false; want true")
+	}
 }
 
 func TestNotIngressIfaceMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	pktEth0 := mustNewPacket(t, packet.WithSrcAddr("10.0.0.1"), packet.WithIngressIface("eth0"))
 	pktEth1 := mustNewPacket(t, packet.WithSrcAddr("10.0.0.2"), packet.WithIngressIface("eth1"))
 	pktNoIface := mustNewPacket(t, packet.WithSrcAddr("10.0.0.3"))
 
 	// Rule excludes eth0
 	r := mustNew(WithNotSrcIface("eth0"))
-	Expect(r.Match(pktEth0)).To(BeFalse())
-	Expect(r.Match(pktEth1)).To(BeTrue())
-	Expect(r.Match(pktNoIface)).To(BeTrue())
+	if r.Match(pktEth0) {
+		t.Error("r.Match(pktEth0) = true; want false")
+	}
+	if !r.Match(pktEth1) {
+		t.Error("r.Match(pktEth1) = false; want true")
+	}
+	if !r.Match(pktNoIface) {
+		t.Error("r.Match(pktNoIface) = false; want true")
+	}
 }
 
 func TestIngressIfaceAndNotIngressIfaceMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	pktEth0 := mustNewPacket(t, packet.WithSrcAddr("10.0.0.1"), packet.WithIngressIface("eth0"))
 	pktEth1 := mustNewPacket(t, packet.WithSrcAddr("10.0.0.2"), packet.WithIngressIface("eth1"))
 	pktEth2 := mustNewPacket(t, packet.WithSrcAddr("10.0.0.3"), packet.WithIngressIface("eth2"))
 
 	// Allow eth0 and eth1, but not eth1 (net effect: only eth0)
 	r := mustNew(WithSrcIface("eth0"), WithSrcIface("eth1"), WithNotSrcIface("eth1"))
-	Expect(r.Match(pktEth0)).To(BeTrue())
-	Expect(r.Match(pktEth1)).To(BeFalse())
-	Expect(r.Match(pktEth2)).To(BeFalse())
+	if !r.Match(pktEth0) {
+		t.Error("r.Match(pktEth0) = false; want true")
+	}
+	if r.Match(pktEth1) {
+		t.Error("r.Match(pktEth1) = true; want false")
+	}
+	if r.Match(pktEth2) {
+		t.Error("r.Match(pktEth2) = true; want false")
+	}
 }
 
 func TestEgressIfaceMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	pktEth0 := mustNewPacket(t, packet.WithDstAddr("10.0.0.1"), packet.WithEgressIface("eth0"))
 	pktEth1 := mustNewPacket(t, packet.WithDstAddr("10.0.0.2"), packet.WithEgressIface("eth1"))
 	pktNoIface := mustNewPacket(t, packet.WithDstAddr("10.0.0.3"))
 
 	// Rule matches only eth0
 	r := mustNew(WithDstIface("eth0"))
-	Expect(r.Match(pktEth0)).To(BeTrue())
-	Expect(r.Match(pktEth1)).To(BeFalse())
-	Expect(r.Match(pktNoIface)).To(BeFalse())
+	if !r.Match(pktEth0) {
+		t.Error("r.Match(pktEth0) = false; want true")
+	}
+	if r.Match(pktEth1) {
+		t.Error("r.Match(pktEth1) = true; want false")
+	}
+	if r.Match(pktNoIface) {
+		t.Error("r.Match(pktNoIface) = true; want false")
+	}
 
 	// Rule matches eth0 or eth1
 	rMulti := mustNew(WithDstIface("eth0"), WithDstIface("eth1"))
-	Expect(rMulti.Match(pktEth0)).To(BeTrue())
-	Expect(rMulti.Match(pktEth1)).To(BeTrue())
-	Expect(rMulti.Match(pktNoIface)).To(BeFalse())
+	if !rMulti.Match(pktEth0) {
+		t.Error("rMulti.Match(pktEth0) = false; want true")
+	}
+	if !rMulti.Match(pktEth1) {
+		t.Error("rMulti.Match(pktEth1) = false; want true")
+	}
+	if rMulti.Match(pktNoIface) {
+		t.Error("rMulti.Match(pktNoIface) = true; want false")
+	}
 
 	// Rule with no interface constraint matches all
 	rAny := mustNew()
-	Expect(rAny.Match(pktEth0)).To(BeTrue())
-	Expect(rAny.Match(pktNoIface)).To(BeTrue())
+	if !rAny.Match(pktEth0) {
+		t.Error("rAny.Match(pktEth0) = false; want true")
+	}
+	if !rAny.Match(pktNoIface) {
+		t.Error("rAny.Match(pktNoIface) = false; want true")
+	}
 }
 
 func TestNotEgressIfaceMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	pktEth0 := mustNewPacket(t, packet.WithDstAddr("10.0.0.1"), packet.WithEgressIface("eth0"))
 	pktEth1 := mustNewPacket(t, packet.WithDstAddr("10.0.0.2"), packet.WithEgressIface("eth1"))
 	pktNoIface := mustNewPacket(t, packet.WithDstAddr("10.0.0.3"))
 
 	// Rule excludes eth0
 	r := mustNew(WithNotDstIface("eth0"))
-	Expect(r.Match(pktEth0)).To(BeFalse())
-	Expect(r.Match(pktEth1)).To(BeTrue())
-	Expect(r.Match(pktNoIface)).To(BeTrue())
+	if r.Match(pktEth0) {
+		t.Error("r.Match(pktEth0) = true; want false")
+	}
+	if !r.Match(pktEth1) {
+		t.Error("r.Match(pktEth1) = false; want true")
+	}
+	if !r.Match(pktNoIface) {
+		t.Error("r.Match(pktNoIface) = false; want true")
+	}
 }
 
 func TestEgressIfaceAndNotEgressIfaceMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	pktEth0 := mustNewPacket(t, packet.WithDstAddr("10.0.0.1"), packet.WithEgressIface("eth0"))
 	pktEth1 := mustNewPacket(t, packet.WithDstAddr("10.0.0.2"), packet.WithEgressIface("eth1"))
 	pktEth2 := mustNewPacket(t, packet.WithDstAddr("10.0.0.3"), packet.WithEgressIface("eth2"))
 
 	// Allow eth0 and eth1, but not eth1 (net effect: only eth0)
 	r := mustNew(WithDstIface("eth0"), WithDstIface("eth1"), WithNotDstIface("eth1"))
-	Expect(r.Match(pktEth0)).To(BeTrue())
-	Expect(r.Match(pktEth1)).To(BeFalse())
-	Expect(r.Match(pktEth2)).To(BeFalse())
+	if !r.Match(pktEth0) {
+		t.Error("r.Match(pktEth0) = false; want true")
+	}
+	if r.Match(pktEth1) {
+		t.Error("r.Match(pktEth1) = true; want false")
+	}
+	if r.Match(pktEth2) {
+		t.Error("r.Match(pktEth2) = true; want false")
+	}
 }
 
 func TestIfaceSetRuleMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	ifaceSet := set.NewIfaceSet()
 	_ = ifaceSet.Add("eth0")
 	_ = ifaceSet.Add("eth1")
@@ -1011,10 +1230,18 @@ func TestIfaceSetRuleMatch(t *testing.T) {
 
 	// IfaceSet on Source — matches against ingress iface.
 	rSrc := mustNew(WithSrcSet(ifaceSet))
-	Expect(rSrc.Match(pktIngressEth0)).To(BeTrue())
-	Expect(rSrc.Match(pktIngressEth1)).To(BeTrue())
-	Expect(rSrc.Match(pktIngressEth2)).To(BeFalse())
-	Expect(rSrc.Match(pktNoIface)).To(BeFalse())
+	if !rSrc.Match(pktIngressEth0) {
+		t.Error("rSrc.Match(pktIngressEth0) = false; want true")
+	}
+	if !rSrc.Match(pktIngressEth1) {
+		t.Error("rSrc.Match(pktIngressEth1) = false; want true")
+	}
+	if rSrc.Match(pktIngressEth2) {
+		t.Error("rSrc.Match(pktIngressEth2) = true; want false")
+	}
+	if rSrc.Match(pktNoIface) {
+		t.Error("rSrc.Match(pktNoIface) = true; want false")
+	}
 
 	pktEgressEth0 := mustNewPacket(t, packet.WithDstAddr("10.0.0.1"), packet.WithEgressIface("eth0"))
 	pktEgressEth1 := mustNewPacket(t, packet.WithDstAddr("10.0.0.2"), packet.WithEgressIface("eth1"))
@@ -1022,14 +1249,18 @@ func TestIfaceSetRuleMatch(t *testing.T) {
 
 	// IfaceSet on Destination — matches against egress iface.
 	rDst := mustNew(WithDstSet(ifaceSet))
-	Expect(rDst.Match(pktEgressEth0)).To(BeTrue())
-	Expect(rDst.Match(pktEgressEth1)).To(BeTrue())
-	Expect(rDst.Match(pktEgressEth2)).To(BeFalse())
+	if !rDst.Match(pktEgressEth0) {
+		t.Error("rDst.Match(pktEgressEth0) = false; want true")
+	}
+	if !rDst.Match(pktEgressEth1) {
+		t.Error("rDst.Match(pktEgressEth1) = false; want true")
+	}
+	if rDst.Match(pktEgressEth2) {
+		t.Error("rDst.Match(pktEgressEth2) = true; want false")
+	}
 }
 
 func TestNotIfaceSetRuleMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	ifaceSet := set.NewIfaceSet()
 	_ = ifaceSet.Add("eth0")
 
@@ -1038,14 +1269,22 @@ func TestNotIfaceSetRuleMatch(t *testing.T) {
 
 	// NotSrcIfaceSet: packets on ingress eth0 should NOT match.
 	rNotSrc := mustNew(WithNotSrcSet(ifaceSet))
-	Expect(rNotSrc.Match(pktIngressEth0)).To(BeFalse())
-	Expect(rNotSrc.Match(pktIngressEth1)).To(BeTrue())
+	if rNotSrc.Match(pktIngressEth0) {
+		t.Error("rNotSrc.Match(pktIngressEth0) = true; want false")
+	}
+	if !rNotSrc.Match(pktIngressEth1) {
+		t.Error("rNotSrc.Match(pktIngressEth1) = false; want true")
+	}
 
 	pktEgressEth0 := mustNewPacket(t, packet.WithDstAddr("10.0.0.1"), packet.WithEgressIface("eth0"))
 	pktEgressEth1 := mustNewPacket(t, packet.WithDstAddr("10.0.0.2"), packet.WithEgressIface("eth1"))
 
 	// NotDstIfaceSet: packets on egress eth0 should NOT match.
 	rNotDst := mustNew(WithNotDstSet(ifaceSet))
-	Expect(rNotDst.Match(pktEgressEth0)).To(BeFalse())
-	Expect(rNotDst.Match(pktEgressEth1)).To(BeTrue())
+	if rNotDst.Match(pktEgressEth0) {
+		t.Error("rNotDst.Match(pktEgressEth0) = true; want false")
+	}
+	if !rNotDst.Match(pktEgressEth1) {
+		t.Error("rNotDst.Match(pktEgressEth1) = false; want true")
+	}
 }

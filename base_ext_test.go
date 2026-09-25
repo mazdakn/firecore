@@ -9,13 +9,22 @@ import (
 	"github.com/mazdakn/firecore/port"
 	"github.com/mazdakn/firecore/proto"
 	"github.com/mazdakn/firecore/set"
-	. "github.com/onsi/gomega"
 )
 
-func expectMatchResult(result *firecore.Result, expectedVerdict firecore.Action, expectedRule string) {
-	Expect(result.Verdict).To(HaveValue(Equal(expectedVerdict)))
-	Expect(result.Trace).NotTo(BeEmpty())
-	Expect(result.Trace[len(result.Trace)-1].Name).To(Equal(expectedRule))
+func expectMatchResult(t *testing.T, result *firecore.Result, expectedVerdict firecore.Action, expectedRule string) {
+	t.Helper()
+	if result.Verdict == nil {
+		t.Fatalf("expected verdict %v, got nil", expectedVerdict)
+	}
+	if *result.Verdict != expectedVerdict {
+		t.Errorf("expected verdict %v, got %v", expectedVerdict, *result.Verdict)
+	}
+	if len(result.Trace) == 0 {
+		t.Fatal("expected non-empty trace")
+	}
+	if last := result.Trace[len(result.Trace)-1].Name; last != expectedRule {
+		t.Errorf("expected last trace rule %q, got %q", expectedRule, last)
+	}
 }
 
 func mustParseAction(t *testing.T, raw string) firecore.Action {
@@ -69,27 +78,31 @@ func mustAddToSet(t *testing.T, s set.Set, value any) {
 func mustNewPacket(t testing.TB, opts ...packet.Option) *packet.Packet {
 	t.Helper()
 	pkt, err := packet.New(opts...)
-	Expect(err).ToNot(HaveOccurred())
+	if err != nil {
+		t.Fatalf("packet.New: %v", err)
+	}
 	return pkt
 }
 
 func newChain(t testing.TB, name string) *firecore.Chain {
 	t.Helper()
 	c, err := firecore.NewChain(name)
-	Expect(err).ToNot(HaveOccurred())
+	if err != nil {
+		t.Fatalf("NewChain: %v", err)
+	}
 	return c
 }
 
 func newEngine(t testing.TB, opts ...firecore.Option) *firecore.Engine {
 	t.Helper()
 	e, err := firecore.New(opts...)
-	Expect(err).ToNot(HaveOccurred())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
 	return e
 }
 
 func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
-	RegisterTestingT(t)
-
 	accept := mustParseAction(t, "accept")
 	tcp := mustParseProto(t, "tcp")
 	udp := mustParseProto(t, "udp")
@@ -110,7 +123,9 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	mustAddToSet(t, dnsTargets, "8.8.8.8,53")
 
 	t1, err := firecore.NewTable("policy", 10, firecore.Drop)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("NewTable unexpected error: %v", err)
+	}
 
 	entry := newChain(t, "entry")
 	admin := newChain(t, "admin")
@@ -121,7 +136,9 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 		firecore.WithProto(tcp),
 		firecore.WithAction(accept),
 	)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("NewRule unexpected error: %v", err)
+	}
 
 	jumpAdmin, err := firecore.NewRule(
 		firecore.WithName("jump-admin"),
@@ -130,7 +147,9 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 		firecore.WithProto(tcp),
 		firecore.WithJump("admin"),
 	)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("NewRule unexpected error: %v", err)
+	}
 
 	allowDNS, err := firecore.NewRule(
 		firecore.WithName("allow-public-dns"),
@@ -138,7 +157,9 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 		firecore.WithProto(udp),
 		firecore.WithAction(accept),
 	)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("NewRule unexpected error: %v", err)
+	}
 
 	allowAdminWeb, err := firecore.NewRule(
 		firecore.WithName("allow-admin-web"),
@@ -146,19 +167,37 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 		firecore.WithProto(tcp),
 		firecore.WithAction(accept),
 	)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("NewRule unexpected error: %v", err)
+	}
 
-	Expect(entry.AddRule(allowEstablished)).To(Succeed())
-	Expect(entry.AddRule(jumpAdmin)).To(Succeed())
-	Expect(entry.AddRule(allowDNS)).To(Succeed())
-	Expect(admin.AddRule(allowAdminWeb)).To(Succeed())
+	if err := entry.AddRule(allowEstablished); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := entry.AddRule(jumpAdmin); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := entry.AddRule(allowDNS); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := admin.AddRule(allowAdminWeb); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
 
-	Expect(t1.AddChain(entry)).To(Succeed())
-	Expect(t1.AddChain(admin)).To(Succeed())
-	Expect(t1.SetEntryChain("entry")).To(Succeed())
+	if err := t1.AddChain(entry); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
+	if err := t1.AddChain(admin); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
+	if err := t1.SetEntryChain("entry"); err != nil {
+		t.Fatalf("SetEntryChain unexpected error: %v", err)
+	}
 
 	engine := newEngine(t, firecore.WithConntrack())
-	Expect(engine.AddTable(t1)).To(Succeed())
+	if err := engine.AddTable(t1); err != nil {
+		t.Fatalf("AddTable unexpected error: %v", err)
+	}
 
 	request := mustNewPacket(t,
 		packet.WithName("admin-request"),
@@ -197,45 +236,87 @@ func TestStatefulPolicyAcrossPublicPackages(t *testing.T) {
 	)
 
 	requestResult, err := engine.Evaluate(request)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("Evaluate(request) unexpected error: %v", err)
+	}
 	replyResult, err := engine.Evaluate(reply)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("Evaluate(reply) unexpected error: %v", err)
+	}
 	dnsQueryResult, err := engine.Evaluate(dnsQuery)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("Evaluate(dnsQuery) unexpected error: %v", err)
+	}
 	outsiderResult, err := engine.Evaluate(outsider)
+	if err != nil {
+		t.Fatalf("Evaluate(outsider) unexpected error: %v", err)
+	}
 
-	Expect(err).NotTo(HaveOccurred())
-	Expect(requestResult.ConnState).To(HaveValue(Equal(conntrack.StateNew)))
-	expectMatchResult(requestResult, accept, "allow-admin-web")
-	Expect(requestResult.Trace).To(HaveLen(3))
-	Expect(requestResult.Trace[0].Name).To(Equal("allow-established"))
-	Expect(requestResult.Trace[1].Name).To(Equal("jump-admin"))
-	Expect(requestResult.Trace[2].Name).To(Equal("allow-admin-web"))
+	if requestResult.ConnState == nil || *requestResult.ConnState != conntrack.StateNew {
+		t.Errorf("requestResult.ConnState = %v; want %v", requestResult.ConnState, conntrack.StateNew)
+	}
+	expectMatchResult(t, requestResult, accept, "allow-admin-web")
+	if len(requestResult.Trace) != 3 {
+		t.Fatalf("len(requestResult.Trace) = %d; want 3", len(requestResult.Trace))
+	}
+	if requestResult.Trace[0].Name != "allow-established" {
+		t.Errorf("requestResult.Trace[0].Name = %q; want allow-established", requestResult.Trace[0].Name)
+	}
+	if requestResult.Trace[1].Name != "jump-admin" {
+		t.Errorf("requestResult.Trace[1].Name = %q; want jump-admin", requestResult.Trace[1].Name)
+	}
+	if requestResult.Trace[2].Name != "allow-admin-web" {
+		t.Errorf("requestResult.Trace[2].Name = %q; want allow-admin-web", requestResult.Trace[2].Name)
+	}
 
-	Expect(replyResult.ConnState).To(HaveValue(Equal(stateEstablished)))
-	expectMatchResult(replyResult, accept, "allow-established")
-	Expect(replyResult.Trace).To(HaveLen(1))
-	Expect(replyResult.Trace[0].Name).To(Equal("allow-established"))
+	if replyResult.ConnState == nil || *replyResult.ConnState != stateEstablished {
+		t.Errorf("replyResult.ConnState = %v; want %v", replyResult.ConnState, stateEstablished)
+	}
+	expectMatchResult(t, replyResult, accept, "allow-established")
+	if len(replyResult.Trace) != 1 {
+		t.Fatalf("len(replyResult.Trace) = %d; want 1", len(replyResult.Trace))
+	}
+	if replyResult.Trace[0].Name != "allow-established" {
+		t.Errorf("replyResult.Trace[0].Name = %q; want allow-established", replyResult.Trace[0].Name)
+	}
 
-	Expect(dnsQueryResult.ConnState).To(HaveValue(Equal(conntrack.StateNew)))
-	expectMatchResult(dnsQueryResult, accept, "allow-public-dns")
-	Expect(dnsQueryResult.Trace).To(HaveLen(3))
-	Expect(dnsQueryResult.Trace[2].Name).To(Equal("allow-public-dns"))
+	if dnsQueryResult.ConnState == nil || *dnsQueryResult.ConnState != conntrack.StateNew {
+		t.Errorf("dnsQueryResult.ConnState = %v; want %v", dnsQueryResult.ConnState, conntrack.StateNew)
+	}
+	expectMatchResult(t, dnsQueryResult, accept, "allow-public-dns")
+	if len(dnsQueryResult.Trace) != 3 {
+		t.Fatalf("len(dnsQueryResult.Trace) = %d; want 3", len(dnsQueryResult.Trace))
+	}
+	if dnsQueryResult.Trace[2].Name != "allow-public-dns" {
+		t.Errorf("dnsQueryResult.Trace[2].Name = %q; want allow-public-dns", dnsQueryResult.Trace[2].Name)
+	}
 
-	expectMatchResult(outsiderResult, firecore.Drop, "table policy default action")
-	Expect(outsiderResult.Trace).To(HaveLen(4))
-	Expect(outsiderResult.Trace[3].Name).To(Equal("table policy default action"))
+	expectMatchResult(t, outsiderResult, firecore.Drop, "table policy default action")
+	if len(outsiderResult.Trace) != 4 {
+		t.Fatalf("len(outsiderResult.Trace) = %d; want 4", len(outsiderResult.Trace))
+	}
+	if outsiderResult.Trace[3].Name != "table policy default action" {
+		t.Errorf("outsiderResult.Trace[3].Name = %q; want 'table policy default action'", outsiderResult.Trace[3].Name)
+	}
 
-	Expect(jumpAdmin.PacketCount()).To(Equal(uint64(1)))
-	Expect(allowAdminWeb.PacketCount()).To(Equal(uint64(1)))
-	Expect(allowEstablished.PacketCount()).To(Equal(uint64(1)))
-	Expect(allowDNS.PacketCount()).To(Equal(uint64(1)))
-	Expect(t1.DefaultRule.PacketCount()).To(Equal(uint64(1)))
+	if got := jumpAdmin.PacketCount(); got != 1 {
+		t.Errorf("jumpAdmin.PacketCount() = %d; want 1", got)
+	}
+	if got := allowAdminWeb.PacketCount(); got != 1 {
+		t.Errorf("allowAdminWeb.PacketCount() = %d; want 1", got)
+	}
+	if got := allowEstablished.PacketCount(); got != 1 {
+		t.Errorf("allowEstablished.PacketCount() = %d; want 1", got)
+	}
+	if got := allowDNS.PacketCount(); got != 1 {
+		t.Errorf("allowDNS.PacketCount() = %d; want 1", got)
+	}
+	if got := t1.DefaultRule.PacketCount(); got != 1 {
+		t.Errorf("t1.DefaultRule.PacketCount() = %d; want 1", got)
+	}
 }
 
 func TestPassReturnAndOrderedTables(t *testing.T) {
-	RegisterTestingT(t)
-
 	pass := mustParseAction(t, "pass")
 	accept := mustParseAction(t, "accept")
 	tcp := mustParseProto(t, "tcp")
@@ -245,7 +326,9 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 	mustAddToSet(t, trustedSources, "192.0.2.0/24")
 
 	classify, err := firecore.NewTable("classify", 1, firecore.Drop)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("NewTable unexpected error: %v", err)
+	}
 
 	classifyEntry := newChain(t, "entry")
 	classifyReview := newChain(t, "review")
@@ -254,13 +337,17 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 		firecore.WithName("jump-review"),
 		firecore.WithJump("review"),
 	)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("NewRule unexpected error: %v", err)
+	}
 
 	returnToEntry, err := firecore.NewRule(
 		firecore.WithName("return-to-entry"),
 		firecore.WithAction(firecore.Return),
 	)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("NewRule unexpected error: %v", err)
+	}
 
 	passTrusted, err := firecore.NewRule(
 		firecore.WithName("pass-trusted-app"),
@@ -269,20 +356,35 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 		firecore.WithProto(tcp),
 		firecore.WithAction(pass),
 	)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("NewRule unexpected error: %v", err)
+	}
 
-	Expect(classifyEntry.AddRule(jumpReview)).To(Succeed())
-	Expect(classifyEntry.AddRule(passTrusted)).To(Succeed())
-	Expect(classifyReview.AddRule(returnToEntry)).To(Succeed())
-	Expect(classify.AddChain(classifyEntry)).To(Succeed())
-	Expect(classify.AddChain(classifyReview)).To(Succeed())
-	Expect(classify.SetEntryChain("entry")).To(Succeed())
+	if err := classifyEntry.AddRule(jumpReview); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := classifyEntry.AddRule(passTrusted); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := classifyReview.AddRule(returnToEntry); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := classify.AddChain(classifyEntry); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
+	if err := classify.AddChain(classifyReview); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
+	if err := classify.SetEntryChain("entry"); err != nil {
+		t.Fatalf("SetEntryChain unexpected error: %v", err)
+	}
 
 	policy, err := firecore.NewTable("policy", 2, firecore.Drop)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("NewTable unexpected error: %v", err)
+	}
 
 	policyEntry := newChain(t, "entry")
-	Expect(err).NotTo(HaveOccurred())
 
 	allowTrustedApp, err := firecore.NewRule(
 		firecore.WithName("allow-trusted-app"),
@@ -291,15 +393,27 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 		firecore.WithProto(tcp),
 		firecore.WithAction(accept),
 	)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("NewRule unexpected error: %v", err)
+	}
 
-	Expect(policyEntry.AddRule(allowTrustedApp)).To(Succeed())
-	Expect(policy.AddChain(policyEntry)).To(Succeed())
-	Expect(policy.SetEntryChain("entry")).To(Succeed())
+	if err := policyEntry.AddRule(allowTrustedApp); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := policy.AddChain(policyEntry); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
+	if err := policy.SetEntryChain("entry"); err != nil {
+		t.Fatalf("SetEntryChain unexpected error: %v", err)
+	}
 
 	engine := newEngine(t)
-	Expect(engine.AddTable(classify)).To(Succeed())
-	Expect(engine.AddTable(policy)).To(Succeed())
+	if err := engine.AddTable(classify); err != nil {
+		t.Fatalf("AddTable unexpected error: %v", err)
+	}
+	if err := engine.AddTable(policy); err != nil {
+		t.Fatalf("AddTable unexpected error: %v", err)
+	}
 
 	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("192.0.2.25"),
@@ -311,18 +425,42 @@ func TestPassReturnAndOrderedTables(t *testing.T) {
 
 	result, err := engine.Evaluate(pkt)
 
-	Expect(err).NotTo(HaveOccurred())
-	expectMatchResult(result, accept, "allow-trusted-app")
-	Expect(result.Trace).To(HaveLen(4))
-	Expect(result.Trace[0].Name).To(Equal("jump-review"))
-	Expect(result.Trace[1].Name).To(Equal("return-to-entry"))
-	Expect(result.Trace[2].Name).To(Equal("pass-trusted-app"))
-	Expect(result.Trace[3].Name).To(Equal("allow-trusted-app"))
+	if err != nil {
+		t.Fatalf("engine.Evaluate unexpected error: %v", err)
+	}
+	expectMatchResult(t, result, accept, "allow-trusted-app")
+	if len(result.Trace) != 4 {
+		t.Fatalf("len(result.Trace) = %d; want 4", len(result.Trace))
+	}
+	if result.Trace[0].Name != "jump-review" {
+		t.Errorf("result.Trace[0].Name = %q; want jump-review", result.Trace[0].Name)
+	}
+	if result.Trace[1].Name != "return-to-entry" {
+		t.Errorf("result.Trace[1].Name = %q; want return-to-entry", result.Trace[1].Name)
+	}
+	if result.Trace[2].Name != "pass-trusted-app" {
+		t.Errorf("result.Trace[2].Name = %q; want pass-trusted-app", result.Trace[2].Name)
+	}
+	if result.Trace[3].Name != "allow-trusted-app" {
+		t.Errorf("result.Trace[3].Name = %q; want allow-trusted-app", result.Trace[3].Name)
+	}
 
-	Expect(jumpReview.PacketCount()).To(Equal(uint64(1)))
-	Expect(returnToEntry.PacketCount()).To(Equal(uint64(1)))
-	Expect(passTrusted.PacketCount()).To(Equal(uint64(1)))
-	Expect(allowTrustedApp.PacketCount()).To(Equal(uint64(1)))
-	Expect(classify.DefaultRule.PacketCount()).To(Equal(uint64(0)))
-	Expect(policy.DefaultRule.PacketCount()).To(Equal(uint64(0)))
+	if got := jumpReview.PacketCount(); got != 1 {
+		t.Errorf("jumpReview.PacketCount() = %d; want 1", got)
+	}
+	if got := returnToEntry.PacketCount(); got != 1 {
+		t.Errorf("returnToEntry.PacketCount() = %d; want 1", got)
+	}
+	if got := passTrusted.PacketCount(); got != 1 {
+		t.Errorf("passTrusted.PacketCount() = %d; want 1", got)
+	}
+	if got := allowTrustedApp.PacketCount(); got != 1 {
+		t.Errorf("allowTrustedApp.PacketCount() = %d; want 1", got)
+	}
+	if got := classify.DefaultRule.PacketCount(); got != 0 {
+		t.Errorf("classify.DefaultRule.PacketCount() = %d; want 0", got)
+	}
+	if got := policy.DefaultRule.PacketCount(); got != 0 {
+		t.Errorf("policy.DefaultRule.PacketCount() = %d; want 0", got)
+	}
 }

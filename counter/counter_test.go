@@ -3,71 +3,81 @@ package counter
 import (
 	"sync"
 	"testing"
-
-	. "github.com/onsi/gomega"
 )
 
 func TestCounterIncrement(t *testing.T) {
-	RegisterTestingT(t)
-
 	c := &Counter{}
 
 	// Initially, counter should be 0
-	Expect(c.Get()).To(Equal(uint64(0)))
+	if got := c.Get(); got != 0 {
+		t.Errorf("c.Get() = %d; want 0", got)
+	}
 
 	// Increment once
 	c.Increment()
-	Expect(c.Get()).To(Equal(uint64(1)))
+	if got := c.Get(); got != 1 {
+		t.Errorf("c.Get() = %d; want 1", got)
+	}
 
 	// Increment again
 	c.Increment()
-	Expect(c.Get()).To(Equal(uint64(2)))
+	if got := c.Get(); got != 2 {
+		t.Errorf("c.Get() = %d; want 2", got)
+	}
 }
 
 func TestCounterAdd(t *testing.T) {
-	RegisterTestingT(t)
-
 	c := &Counter{}
 
 	// Initially, counter should be 0
-	Expect(c.Get()).To(Equal(uint64(0)))
+	if got := c.Get(); got != 0 {
+		t.Errorf("c.Get() = %d; want 0", got)
+	}
 
 	// Add a value
 	c.Add(42)
-	Expect(c.Get()).To(Equal(uint64(42)))
+	if got := c.Get(); got != 42 {
+		t.Errorf("c.Get() = %d; want 42", got)
+	}
 
 	// Add again, accumulating
 	c.Add(8)
-	Expect(c.Get()).To(Equal(uint64(50)))
+	if got := c.Get(); got != 50 {
+		t.Errorf("c.Get() = %d; want 50", got)
+	}
 
 	// Adding 0 is a no-op
 	c.Add(0)
-	Expect(c.Get()).To(Equal(uint64(50)))
+	if got := c.Get(); got != 50 {
+		t.Errorf("c.Get() = %d; want 50", got)
+	}
 }
 
 func TestCounterReset(t *testing.T) {
-	RegisterTestingT(t)
-
 	c := &Counter{}
 
 	// Increment a few times
 	c.Increment()
 	c.Increment()
 	c.Increment()
-	Expect(c.Get()).To(Equal(uint64(3)))
+	if got := c.Get(); got != 3 {
+		t.Errorf("c.Get() = %d; want 3", got)
+	}
 
 	// Reset counter
 	c.Reset()
-	Expect(c.Get()).To(Equal(uint64(0)))
+	if got := c.Get(); got != 0 {
+		t.Errorf("c.Get() = %d; want 0", got)
+	}
 
 	// Increment after reset
 	c.Increment()
-	Expect(c.Get()).To(Equal(uint64(1)))
+	if got := c.Get(); got != 1 {
+		t.Errorf("c.Get() = %d; want 1", got)
+	}
 }
 
 func TestCounterConcurrency(t *testing.T) {
-	RegisterTestingT(t)
-
 	c := &Counter{}
 
 	// Concurrently increment counter to test thread-safety
@@ -90,5 +100,7 @@ func TestCounterConcurrency(t *testing.T) {
 	wg.Wait()
 
 	// Verify the counter is correct
-	Expect(c.Get()).To(Equal(expectedCount))
+	if got := c.Get(); got != expectedCount {
+		t.Errorf("c.Get() = %d; want %d", got, expectedCount)
+	}
 }

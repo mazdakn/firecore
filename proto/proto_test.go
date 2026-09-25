@@ -2,21 +2,21 @@ package proto
 
 import (
 	"testing"
-
-	. "github.com/onsi/gomega"
 )
 
 func TestProtoConstants(t *testing.T) {
-	RegisterTestingT(t)
-
-	Expect(ICMP).To(Equal(Proto(1)))
-	Expect(TCP).To(Equal(Proto(6)))
-	Expect(UDP).To(Equal(Proto(17)))
+	if got := ICMP; got != Proto(1) {
+		t.Errorf("ICMP = %d; want 1", got)
+	}
+	if got := TCP; got != Proto(6) {
+		t.Errorf("TCP = %d; want 6", got)
+	}
+	if got := UDP; got != Proto(17) {
+		t.Errorf("UDP = %d; want 17", got)
+	}
 }
 
 func TestProtoString(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []struct {
 		proto    Proto
 		expected string
@@ -31,14 +31,14 @@ func TestProtoString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.expected, func(t *testing.T) {
-			Expect(tt.proto.String()).To(Equal(tt.expected))
+			if got := tt.proto.String(); got != tt.expected {
+				t.Errorf("Proto.String() = %q; want %q", got, tt.expected)
+			}
 		})
 	}
 }
 
 func TestProtoParse(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []struct {
 		input     string
 		expected  *Proto
@@ -64,12 +64,22 @@ func TestProtoParse(t *testing.T) {
 		t.Run(tt.input, func(t *testing.T) {
 			p, err := Parse(tt.input)
 			if tt.shouldErr {
-				Expect(err).To(HaveOccurred())
-				Expect(p).To(BeNil())
+				if err == nil {
+					t.Fatalf("Parse(%q) expected error, got nil", tt.input)
+				}
+				if p != nil {
+					t.Fatalf("Parse(%q) expected nil proto, got %+v", tt.input, p)
+				}
 			} else {
-				Expect(err).ToNot(HaveOccurred())
-				Expect(p).ToNot(BeNil())
-				Expect(*p).To(Equal(*tt.expected))
+				if err != nil {
+					t.Fatalf("Parse(%q) unexpected error: %v", tt.input, err)
+				}
+				if p == nil {
+					t.Fatalf("Parse(%q) expected non-nil proto", tt.input)
+				}
+				if *p != *tt.expected {
+					t.Errorf("Parse(%q) = %+v; want %+v", tt.input, *p, *tt.expected)
+				}
 			}
 		})
 	}

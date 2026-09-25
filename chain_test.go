@@ -1,92 +1,124 @@
 package firecore
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/mazdakn/firecore/packet"
-	. "github.com/onsi/gomega"
 )
 
 func TestNewChainEmptyNameFails(t *testing.T) {
-	RegisterTestingT(t)
-
 	chain, err := NewChain("")
-	Expect(err).To(HaveOccurred())
-	Expect(chain).To(BeNil())
+	if err == nil {
+		t.Fatal("NewChain(\"\") expected error, got nil")
+	}
+	if chain != nil {
+		t.Errorf("NewChain(\"\") expected nil chain, got %v", chain)
+	}
 }
 
 func TestChainAddRuleSortAscending(t *testing.T) {
-	RegisterTestingT(t)
-
 	chain := newChain("main")
 
 	rule1 := newRule(WithName("rule1"), WithOrder(10), WithAction(Accept))
 	rule2 := newRule(WithName("rule2"), WithOrder(30), WithAction(Accept))
 	rule3 := newRule(WithName("rule3"), WithOrder(20), WithAction(Accept))
 
-	Expect(chain.AddRule(rule1)).To(Succeed())
-	Expect(chain.AddRule(rule2)).To(Succeed())
-	Expect(chain.AddRule(rule3)).To(Succeed())
+	if err := chain.AddRule(rule1); err != nil {
+		t.Fatalf("AddRule(rule1) unexpected error: %v", err)
+	}
+	if err := chain.AddRule(rule2); err != nil {
+		t.Fatalf("AddRule(rule2) unexpected error: %v", err)
+	}
+	if err := chain.AddRule(rule3); err != nil {
+		t.Fatalf("AddRule(rule3) unexpected error: %v", err)
+	}
 
-	Expect(chain.Rules).To(HaveLen(3))
-	Expect(chain.Rules[0].Order).To(Equal(uint64(10)))
-	Expect(chain.Rules[1].Order).To(Equal(uint64(20)))
-	Expect(chain.Rules[2].Order).To(Equal(uint64(30)))
+	if len(chain.Rules) != 3 {
+		t.Fatalf("len(chain.Rules) = %d; want 3", len(chain.Rules))
+	}
+	if chain.Rules[0].Order != 10 {
+		t.Errorf("chain.Rules[0].Order = %d; want 10", chain.Rules[0].Order)
+	}
+	if chain.Rules[1].Order != 20 {
+		t.Errorf("chain.Rules[1].Order = %d; want 20", chain.Rules[1].Order)
+	}
+	if chain.Rules[2].Order != 30 {
+		t.Errorf("chain.Rules[2].Order = %d; want 30", chain.Rules[2].Order)
+	}
 }
 
 func TestChainAddRuleSortStableForEqualOrders(t *testing.T) {
-	RegisterTestingT(t)
-
 	chain := newChain("main")
 
 	rule1 := newRule(WithName("rule1"), WithAction(Accept))
 	rule2 := newRule(WithName("rule2"), WithAction(Drop))
 	rule3 := newRule(WithName("rule3"), WithAction(Accept))
 
-	Expect(chain.AddRule(rule1)).To(Succeed())
-	Expect(chain.AddRule(rule2)).To(Succeed())
-	Expect(chain.AddRule(rule3)).To(Succeed())
+	if err := chain.AddRule(rule1); err != nil {
+		t.Fatalf("AddRule(rule1) unexpected error: %v", err)
+	}
+	if err := chain.AddRule(rule2); err != nil {
+		t.Fatalf("AddRule(rule2) unexpected error: %v", err)
+	}
+	if err := chain.AddRule(rule3); err != nil {
+		t.Fatalf("AddRule(rule3) unexpected error: %v", err)
+	}
 
-	Expect(chain.Rules).To(HaveLen(3))
-	Expect(chain.Rules[0].Name).To(Equal("rule1"))
-	Expect(chain.Rules[1].Name).To(Equal("rule2"))
-	Expect(chain.Rules[2].Name).To(Equal("rule3"))
+	if len(chain.Rules) != 3 {
+		t.Fatalf("len(chain.Rules) = %d; want 3", len(chain.Rules))
+	}
+	if chain.Rules[0].Name != "rule1" {
+		t.Errorf("chain.Rules[0].Name = %q; want rule1", chain.Rules[0].Name)
+	}
+	if chain.Rules[1].Name != "rule2" {
+		t.Errorf("chain.Rules[1].Name = %q; want rule2", chain.Rules[1].Name)
+	}
+	if chain.Rules[2].Name != "rule3" {
+		t.Errorf("chain.Rules[2].Name = %q; want rule3", chain.Rules[2].Name)
+	}
 }
 
 func TestChainAddRuleNilFails(t *testing.T) {
-	RegisterTestingT(t)
-
 	chain := newChain("main")
-	Expect(chain.AddRule(nil)).To(HaveOccurred())
+	if err := chain.AddRule(nil); err == nil {
+		t.Fatal("AddRule(nil) expected error, got nil")
+	}
 }
 
 func TestChainAddRuleDuplicateNameFails(t *testing.T) {
-	RegisterTestingT(t)
-
 	chain := newChain("main")
 	rule1 := newRule(WithName("dup"), WithAction(Accept))
 	rule2 := newRule(WithName("dup"), WithAction(Drop))
 
-	Expect(chain.AddRule(rule1)).To(Succeed())
-	Expect(chain.AddRule(rule2)).To(HaveOccurred())
-	Expect(chain.Rules).To(HaveLen(1))
+	if err := chain.AddRule(rule1); err != nil {
+		t.Fatalf("AddRule(rule1) unexpected error: %v", err)
+	}
+	if err := chain.AddRule(rule2); err == nil {
+		t.Fatal("AddRule(rule2) expected error for duplicate name, got nil")
+	}
+	if len(chain.Rules) != 1 {
+		t.Errorf("len(chain.Rules) = %d; want 1", len(chain.Rules))
+	}
 }
 
 func TestChainAddRuleAllowsRepeatedAnonymousRules(t *testing.T) {
-	RegisterTestingT(t)
-
 	chain := newChain("main")
 	rule1 := newRule(WithAction(Accept))
 	rule2 := newRule(WithAction(Drop))
 
-	Expect(chain.AddRule(rule1)).To(Succeed())
-	Expect(chain.AddRule(rule2)).To(Succeed())
-	Expect(chain.Rules).To(HaveLen(2))
+	if err := chain.AddRule(rule1); err != nil {
+		t.Fatalf("AddRule(rule1) unexpected error: %v", err)
+	}
+	if err := chain.AddRule(rule2); err != nil {
+		t.Fatalf("AddRule(rule2) unexpected error: %v", err)
+	}
+	if len(chain.Rules) != 2 {
+		t.Errorf("len(chain.Rules) = %d; want 2", len(chain.Rules))
+	}
 }
 
 func TestTableJumpToChainAndReturn(t *testing.T) {
-	RegisterTestingT(t)
-
 	tbl := newTable("test", 0, Drop)
 
 	pkt := mustNewPacket(t,
@@ -100,31 +132,49 @@ func TestTableJumpToChainAndReturn(t *testing.T) {
 	helperChain := newChain("helper")
 	acceptHTTP := newRule(WithName("accept-http"), WithOrder(1), WithAction(Accept),
 		WithProto(6), WithDstPort(80))
-	Expect(helperChain.AddRule(acceptHTTP)).To(Succeed())
+	if err := helperChain.AddRule(acceptHTTP); err != nil {
+		t.Fatalf("AddRule(acceptHTTP) unexpected error: %v", err)
+	}
 
 	// entry chain: jump to helper for TCP traffic
 	mainChain := newChain("main")
 	jumpRule := newRule(WithName("jump-to-helper"), WithOrder(1),
 		WithJump("helper"), WithProto(6))
-	Expect(mainChain.AddRule(jumpRule)).To(Succeed())
+	if err := mainChain.AddRule(jumpRule); err != nil {
+		t.Fatalf("AddRule(jumpRule) unexpected error: %v", err)
+	}
 
-	Expect(tbl.AddChain(mainChain)).To(Succeed())
-	Expect(tbl.AddChain(helperChain)).To(Succeed())
+	if err := tbl.AddChain(mainChain); err != nil {
+		t.Fatalf("AddChain(mainChain) unexpected error: %v", err)
+	}
+	if err := tbl.AddChain(helperChain); err != nil {
+		t.Fatalf("AddChain(helperChain) unexpected error: %v", err)
+	}
 
 	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
 
-	Expect(matched).To(BeTrue())
-	Expect(err).NotTo(HaveOccurred())
-	Expect(result.Verdict).To(HaveValue(Equal(Accept)))
-	Expect(result.Trace).To(HaveLen(2))
-	Expect(result.Trace[0].Name).To(Equal("jump-to-helper"))
-	Expect(result.Trace[1].Name).To(Equal("accept-http"))
+	if !matched {
+		t.Errorf("tbl.Match() matched = false; want true")
+	}
+	if err != nil {
+		t.Fatalf("tbl.Match() unexpected error: %v", err)
+	}
+	if result.Verdict == nil || *result.Verdict != Accept {
+		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Accept)
+	}
+	if len(result.Trace) != 2 {
+		t.Fatalf("len(result.Trace) = %d; want 2", len(result.Trace))
+	}
+	if result.Trace[0].Name != "jump-to-helper" {
+		t.Errorf("result.Trace[0].Name = %q; want jump-to-helper", result.Trace[0].Name)
+	}
+	if result.Trace[1].Name != "accept-http" {
+		t.Errorf("result.Trace[1].Name = %q; want accept-http", result.Trace[1].Name)
+	}
 }
 
 func TestTableJumpChainNoMatchReturnsToCaller(t *testing.T) {
-	RegisterTestingT(t)
-
 	tbl := newTable("test", 0, Drop)
 
 	pkt := mustNewPacket(t,
@@ -138,29 +188,41 @@ func TestTableJumpChainNoMatchReturnsToCaller(t *testing.T) {
 	helperChain := newChain("helper")
 	noMatchRule := newRule(WithName("accept-https"), WithOrder(1), WithAction(Accept),
 		WithProto(6), WithDstPort(443))
-	Expect(helperChain.AddRule(noMatchRule)).To(Succeed())
+	if err := helperChain.AddRule(noMatchRule); err != nil {
+		t.Fatalf("AddRule(noMatchRule) unexpected error: %v", err)
+	}
 
 	// entry chain: jump to helper, then fall through to default action
 	mainChain := newChain("main")
 	jumpRule := newRule(WithName("jump-to-helper"), WithOrder(1),
 		WithJump("helper"), WithProto(6))
-	Expect(mainChain.AddRule(jumpRule)).To(Succeed())
+	if err := mainChain.AddRule(jumpRule); err != nil {
+		t.Fatalf("AddRule(jumpRule) unexpected error: %v", err)
+	}
 
-	Expect(tbl.AddChain(mainChain)).To(Succeed())
-	Expect(tbl.AddChain(helperChain)).To(Succeed())
+	if err := tbl.AddChain(mainChain); err != nil {
+		t.Fatalf("AddChain(mainChain) unexpected error: %v", err)
+	}
+	if err := tbl.AddChain(helperChain); err != nil {
+		t.Fatalf("AddChain(helperChain) unexpected error: %v", err)
+	}
 
 	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
 
 	// helper chain returned, entry chain fell through → default Drop
-	Expect(err).NotTo(HaveOccurred())
-	Expect(matched).To(BeTrue())
-	Expect(result.Verdict).To(HaveValue(Equal(Drop)))
+	if err != nil {
+		t.Fatalf("tbl.Match() unexpected error: %v", err)
+	}
+	if !matched {
+		t.Errorf("tbl.Match() matched = false; want true")
+	}
+	if result.Verdict == nil || *result.Verdict != Drop {
+		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Drop)
+	}
 }
 
 func TestTableReturnActionReturnsToCallerChain(t *testing.T) {
-	RegisterTestingT(t)
-
 	tbl := newTable("test", 0, Drop)
 
 	pkt := mustNewPacket(t,
@@ -173,40 +235,60 @@ func TestTableReturnActionReturnsToCallerChain(t *testing.T) {
 	// helper chain: Return immediately
 	helperChain := newChain("helper")
 	returnRule := newRule(WithName("return-all"), WithOrder(1), WithAction(Return))
-	Expect(helperChain.AddRule(returnRule)).To(Succeed())
+	if err := helperChain.AddRule(returnRule); err != nil {
+		t.Fatalf("AddRule(returnRule) unexpected error: %v", err)
+	}
 
 	// entry chain: jump to helper, then accept all
 	mainChain := newChain("main")
 	jumpRule := newRule(WithName("jump-to-helper"), WithOrder(1),
 		WithJump("helper"), WithProto(6))
 	acceptAll := newRule(WithName("accept-all"), WithOrder(2), WithAction(Accept))
-	Expect(mainChain.AddRule(jumpRule)).To(Succeed())
-	Expect(mainChain.AddRule(acceptAll)).To(Succeed())
+	if err := mainChain.AddRule(jumpRule); err != nil {
+		t.Fatalf("AddRule(jumpRule) unexpected error: %v", err)
+	}
+	if err := mainChain.AddRule(acceptAll); err != nil {
+		t.Fatalf("AddRule(acceptAll) unexpected error: %v", err)
+	}
 
-	Expect(tbl.AddChain(mainChain)).To(Succeed())
-	Expect(tbl.AddChain(helperChain)).To(Succeed())
+	if err := tbl.AddChain(mainChain); err != nil {
+		t.Fatalf("AddChain(mainChain) unexpected error: %v", err)
+	}
+	if err := tbl.AddChain(helperChain); err != nil {
+		t.Fatalf("AddChain(helperChain) unexpected error: %v", err)
+	}
 
 	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
 
 	// Return in helper → continues in main after jump-to-helper → accept-all
-	Expect(err).NotTo(HaveOccurred())
-	Expect(matched).To(BeTrue())
-	Expect(result.Verdict).To(HaveValue(Equal(Accept)))
-	Expect(result.Trace[len(result.Trace)-1].Name).To(Equal("accept-all"))
+	if err != nil {
+		t.Fatalf("tbl.Match() unexpected error: %v", err)
+	}
+	if !matched {
+		t.Errorf("tbl.Match() matched = false; want true")
+	}
+	if result.Verdict == nil || *result.Verdict != Accept {
+		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Accept)
+	}
+	if len(result.Trace) == 0 || result.Trace[len(result.Trace)-1].Name != "accept-all" {
+		t.Errorf("expected last trace rule name to be accept-all, got %v", result.Trace)
+	}
 }
 
 func TestTableMatchReturnsErrorForMissingJumpTarget(t *testing.T) {
-	RegisterTestingT(t)
-
 	tbl := newTable("test", 0, Drop)
 
 	mainChain := newChain("main")
-	Expect(mainChain.AddRule(newRule(
+	if err := mainChain.AddRule(newRule(
 		WithName("jump-missing"),
 		WithJump("missing"),
-	))).To(Succeed())
-	Expect(tbl.AddChain(mainChain)).To(Succeed())
+	)); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := tbl.AddChain(mainChain); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
 
 	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
@@ -216,26 +298,41 @@ func TestTableMatchReturnsErrorForMissingJumpTarget(t *testing.T) {
 	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
 
-	Expect(err).To(MatchError(`chain "missing" not found`))
-	Expect(matched).To(BeFalse())
-	Expect(result.Trace).To(HaveLen(1))
-	Expect(result.Trace[0].Name).To(Equal("jump-missing"))
+	wantErr := `chain "missing" not found`
+	if err == nil || err.Error() != wantErr {
+		t.Errorf("err = %v; want %q", err, wantErr)
+	}
+	if matched {
+		t.Errorf("tbl.Match() matched = true; want false")
+	}
+	if len(result.Trace) != 1 {
+		t.Fatalf("len(result.Trace) = %d; want 1", len(result.Trace))
+	}
+	if result.Trace[0].Name != "jump-missing" {
+		t.Errorf("result.Trace[0].Name = %q; want jump-missing", result.Trace[0].Name)
+	}
 }
 
 func TestTableMatchReturnsErrorWhenJumpDepthExceeded(t *testing.T) {
-	RegisterTestingT(t)
-
 	tbl := newTable("test", 0, Drop)
 
 	// A direct cycle that Validate was not called to catch; Match must fail
 	// safe via the depth limit instead of recursing until a stack overflow.
 	mainChain := newChain("main")
-	Expect(mainChain.AddRule(newRule(WithName("jump-to-helper"), WithJump("helper")))).To(Succeed())
-	Expect(tbl.AddChain(mainChain)).To(Succeed())
+	if err := mainChain.AddRule(newRule(WithName("jump-to-helper"), WithJump("helper"))); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := tbl.AddChain(mainChain); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
 
 	helperChain := newChain("helper")
-	Expect(helperChain.AddRule(newRule(WithName("jump-to-main"), WithJump("main")))).To(Succeed())
-	Expect(tbl.AddChain(helperChain)).To(Succeed())
+	if err := helperChain.AddRule(newRule(WithName("jump-to-main"), WithJump("main"))); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := tbl.AddChain(helperChain); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
 
 	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
@@ -244,6 +341,10 @@ func TestTableMatchReturnsErrorWhenJumpDepthExceeded(t *testing.T) {
 	result := &Result{}
 	matched, err := tbl.Match(pkt, result)
 
-	Expect(matched).To(BeFalse())
-	Expect(err).To(MatchError(ContainSubstring("jump depth exceeded")))
+	if matched {
+		t.Errorf("tbl.Match() matched = true; want false")
+	}
+	if err == nil || !strings.Contains(err.Error(), "jump depth exceeded") {
+		t.Errorf("err = %v; want substring 'jump depth exceeded'", err)
+	}
 }

@@ -6,17 +6,16 @@ import (
 	firecore "github.com/mazdakn/firecore"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/proto"
-	. "github.com/onsi/gomega"
 )
 
 func TestPayloadRegexPolicy(t *testing.T) {
-	RegisterTestingT(t)
-
 	accept := mustParseAction(t, "accept")
 	tcp := mustParseProto(t, "tcp")
 
 	policy, err := firecore.NewTable("payload-policy", 1, firecore.Drop)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("NewTable unexpected error: %v", err)
+	}
 
 	entry := newChain(t, "entry")
 
@@ -27,14 +26,24 @@ func TestPayloadRegexPolicy(t *testing.T) {
 		firecore.WithPayload(`(?i)api_key=[A-Za-z0-9_-]+`),
 		firecore.WithAction(accept),
 	)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("NewRule unexpected error: %v", err)
+	}
 
-	Expect(entry.AddRule(allowAPIKey)).To(Succeed())
-	Expect(policy.AddChain(entry)).To(Succeed())
-	Expect(policy.SetEntryChain("entry")).To(Succeed())
+	if err := entry.AddRule(allowAPIKey); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := policy.AddChain(entry); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
+	if err := policy.SetEntryChain("entry"); err != nil {
+		t.Fatalf("SetEntryChain unexpected error: %v", err)
+	}
 
 	engine := newEngine(t)
-	Expect(engine.AddTable(policy)).To(Succeed())
+	if err := engine.AddTable(policy); err != nil {
+		t.Fatalf("AddTable unexpected error: %v", err)
+	}
 
 	allowed := mustNewPacket(t,
 		packet.WithName("allowed-api-request"),
@@ -57,18 +66,34 @@ func TestPayloadRegexPolicy(t *testing.T) {
 	)
 
 	allowedResult, err := engine.Evaluate(allowed)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("Evaluate(allowed) unexpected error: %v", err)
+	}
 	blockedResult, err := engine.Evaluate(blocked)
+	if err != nil {
+		t.Fatalf("Evaluate(blocked) unexpected error: %v", err)
+	}
 
-	Expect(err).NotTo(HaveOccurred())
-	expectMatchResult(allowedResult, accept, "allow-api-key")
-	Expect(allowedResult.Trace).To(HaveLen(1))
-	Expect(allowedResult.Trace[0].Name).To(Equal("allow-api-key"))
+	expectMatchResult(t, allowedResult, accept, "allow-api-key")
+	if len(allowedResult.Trace) != 1 {
+		t.Fatalf("len(allowedResult.Trace) = %d; want 1", len(allowedResult.Trace))
+	}
+	if allowedResult.Trace[0].Name != "allow-api-key" {
+		t.Errorf("allowedResult.Trace[0].Name = %q; want allow-api-key", allowedResult.Trace[0].Name)
+	}
 
-	expectMatchResult(blockedResult, firecore.Drop, "table payload-policy default action")
-	Expect(blockedResult.Trace).To(HaveLen(2))
-	Expect(blockedResult.Trace[1].Name).To(Equal("table payload-policy default action"))
+	expectMatchResult(t, blockedResult, firecore.Drop, "table payload-policy default action")
+	if len(blockedResult.Trace) != 2 {
+		t.Fatalf("len(blockedResult.Trace) = %d; want 2", len(blockedResult.Trace))
+	}
+	if blockedResult.Trace[1].Name != "table payload-policy default action" {
+		t.Errorf("blockedResult.Trace[1].Name = %q; want 'table payload-policy default action'", blockedResult.Trace[1].Name)
+	}
 
-	Expect(allowAPIKey.PacketCount()).To(Equal(uint64(1)))
-	Expect(policy.DefaultRule.PacketCount()).To(Equal(uint64(1)))
+	if got := allowAPIKey.PacketCount(); got != 1 {
+		t.Errorf("allowAPIKey.PacketCount() = %d; want 1", got)
+	}
+	if got := policy.DefaultRule.PacketCount(); got != 1 {
+		t.Errorf("policy.DefaultRule.PacketCount() = %d; want 1", got)
+	}
 }

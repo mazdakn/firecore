@@ -1,9 +1,8 @@
 package packet
 
 import (
+	"bytes"
 	"testing"
-
-	. "github.com/onsi/gomega"
 
 	"github.com/mazdakn/firecore/proto"
 )
@@ -11,21 +10,23 @@ import (
 func mustNewPacket(t testing.TB, opts ...Option) *Packet {
 	t.Helper()
 	pkt, err := New(opts...)
-	Expect(err).ToNot(HaveOccurred())
+	if err != nil {
+		t.Fatalf("packet.New: %v", err)
+	}
 	return pkt
 }
 
 func TestNewNilOptionFails(t *testing.T) {
-	RegisterTestingT(t)
-
 	pkt, err := New(WithSrcPort(80), nil)
-	Expect(err).To(HaveOccurred())
-	Expect(pkt).To(BeNil())
+	if err == nil {
+		t.Fatal("New(..., nil) expected error, got nil")
+	}
+	if pkt != nil {
+		t.Errorf("New(..., nil) expected nil pkt, got %v", pkt)
+	}
 }
 
 func TestWithName(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []struct {
 		name    string
 		pktName string
@@ -38,14 +39,14 @@ func TestWithName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pkt := mustNewPacket(t, WithName(tt.pktName))
-			Expect(pkt.Metadata.Name).To(Equal(tt.pktName))
+			if pkt.Metadata.Name != tt.pktName {
+				t.Errorf("Metadata.Name = %q; want %q", pkt.Metadata.Name, tt.pktName)
+			}
 		})
 	}
 }
 
 func TestPacketStringWithName(t *testing.T) {
-	RegisterTestingT(t)
-
 	// When name is set, String() should return the name
 	pkt := mustNewPacket(t,
 		WithName("web-traffic"),
@@ -55,7 +56,9 @@ func TestPacketStringWithName(t *testing.T) {
 		WithDstAddr("192.168.1.1"),
 		WithDstPort(80),
 	)
-	Expect(pkt.String()).To(Equal("web-traffic"))
+	if got := pkt.String(); got != "web-traffic" {
+		t.Errorf("pkt.String() = %q; want %q", got, "web-traffic")
+	}
 
 	// When name is empty, String() should return the detailed format
 	pkt2 := mustNewPacket(t,
@@ -65,55 +68,73 @@ func TestPacketStringWithName(t *testing.T) {
 		WithDstAddr("192.168.1.1"),
 		WithDstPort(80),
 	)
-	Expect(pkt2.String()).To(Equal("tcp{10.0.0.1:12345->192.168.1.1:80}"))
+	if got := pkt2.String(); got != "tcp{10.0.0.1:12345->192.168.1.1:80}" {
+		t.Errorf("pkt2.String() = %q; want %q", got, "tcp{10.0.0.1:12345->192.168.1.1:80}")
+	}
 }
 
 func TestNewEmpty(t *testing.T) {
-	RegisterTestingT(t)
-
 	pkt := mustNewPacket(t)
-	Expect(pkt).ToNot(BeNil())
-	Expect(pkt.SrcAddr).To(BeNil())
-	Expect(pkt.DstAddr).To(BeNil())
-	Expect(pkt.Proto).To(Equal(proto.Proto(0)))
-	Expect(pkt.SrcPort).To(Equal(uint16(0)))
-	Expect(pkt.DstPort).To(Equal(uint16(0)))
-	Expect(pkt.Payload).To(BeNil())
-	Expect(pkt.Size).To(Equal(uint32(0)))
+	if pkt == nil {
+		t.Fatal("mustNewPacket returned nil")
+	}
+	if pkt.SrcAddr != nil {
+		t.Errorf("pkt.SrcAddr = %v; want nil", pkt.SrcAddr)
+	}
+	if pkt.DstAddr != nil {
+		t.Errorf("pkt.DstAddr = %v; want nil", pkt.DstAddr)
+	}
+	if pkt.Proto != proto.Proto(0) {
+		t.Errorf("pkt.Proto = %v; want 0", pkt.Proto)
+	}
+	if pkt.SrcPort != 0 {
+		t.Errorf("pkt.SrcPort = %d; want 0", pkt.SrcPort)
+	}
+	if pkt.DstPort != 0 {
+		t.Errorf("pkt.DstPort = %d; want 0", pkt.DstPort)
+	}
+	if pkt.Payload != nil {
+		t.Errorf("pkt.Payload = %v; want nil", pkt.Payload)
+	}
+	if pkt.Size != 0 {
+		t.Errorf("pkt.Size = %d; want 0", pkt.Size)
+	}
 }
 
 func TestWithPayload(t *testing.T) {
-	RegisterTestingT(t)
-
 	original := []byte("GET /healthz HTTP/1.1")
 	pkt := mustNewPacket(t, WithPayload(original))
 
-	Expect(pkt.Payload).To(Equal([]byte("GET /healthz HTTP/1.1")))
+	if !bytes.Equal(pkt.Payload, []byte("GET /healthz HTTP/1.1")) {
+		t.Errorf("pkt.Payload = %q; want %q", pkt.Payload, "GET /healthz HTTP/1.1")
+	}
 
 	original[0] = 'P'
-	Expect(pkt.Payload).To(Equal([]byte("GET /healthz HTTP/1.1")))
+	if !bytes.Equal(pkt.Payload, []byte("GET /healthz HTTP/1.1")) {
+		t.Errorf("pkt.Payload mutated; got %q; want %q", pkt.Payload, "GET /healthz HTTP/1.1")
+	}
 }
 
 func TestWithSize(t *testing.T) {
-	RegisterTestingT(t)
-
 	pkt := mustNewPacket(t, WithSize(1500))
-	Expect(pkt.Size).To(Equal(uint32(1500)))
+	if pkt.Size != 1500 {
+		t.Errorf("pkt.Size = %d; want 1500", pkt.Size)
+	}
 }
 
 func TestWithSizeIndependentOfPayload(t *testing.T) {
-	RegisterTestingT(t)
-
 	// Size reflects the full on-the-wire packet, which may be larger than
 	// whatever slice of bytes Payload was populated with.
 	pkt := mustNewPacket(t, WithPayload([]byte("hi")), WithSize(1500))
-	Expect(pkt.Payload).To(Equal([]byte("hi")))
-	Expect(pkt.Size).To(Equal(uint32(1500)))
+	if !bytes.Equal(pkt.Payload, []byte("hi")) {
+		t.Errorf("pkt.Payload = %q; want %q", pkt.Payload, "hi")
+	}
+	if pkt.Size != 1500 {
+		t.Errorf("pkt.Size = %d; want 1500", pkt.Size)
+	}
 }
 
 func TestWithProto(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []struct {
 		name  string
 		proto proto.Proto
@@ -128,14 +149,14 @@ func TestWithProto(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pkt := mustNewPacket(t, WithProto(tt.proto))
-			Expect(pkt.Proto).To(Equal(tt.proto))
+			if pkt.Proto != tt.proto {
+				t.Errorf("pkt.Proto = %v; want %v", pkt.Proto, tt.proto)
+			}
 		})
 	}
 }
 
 func TestWithSrcPort(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []struct {
 		name string
 		port uint16
@@ -150,14 +171,14 @@ func TestWithSrcPort(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pkt := mustNewPacket(t, WithSrcPort(tt.port))
-			Expect(pkt.SrcPort).To(Equal(tt.port))
+			if pkt.SrcPort != tt.port {
+				t.Errorf("pkt.SrcPort = %d; want %d", pkt.SrcPort, tt.port)
+			}
 		})
 	}
 }
 
 func TestWithDstPort(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []struct {
 		name string
 		port uint16
@@ -172,14 +193,14 @@ func TestWithDstPort(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pkt := mustNewPacket(t, WithDstPort(tt.port))
-			Expect(pkt.DstPort).To(Equal(tt.port))
+			if pkt.DstPort != tt.port {
+				t.Errorf("pkt.DstPort = %d; want %d", pkt.DstPort, tt.port)
+			}
 		})
 	}
 }
 
 func TestWithSrcAddrIPv4(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []struct {
 		name string
 		addr string
@@ -194,15 +215,17 @@ func TestWithSrcAddrIPv4(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pkt := mustNewPacket(t, WithSrcAddr(tt.addr))
-			Expect(pkt.SrcAddr).ToNot(BeNil())
-			Expect(pkt.SrcAddr.String()).To(Equal(tt.addr))
+			if pkt.SrcAddr == nil {
+				t.Fatalf("pkt.SrcAddr is nil")
+			}
+			if got := pkt.SrcAddr.String(); got != tt.addr {
+				t.Errorf("pkt.SrcAddr.String() = %q; want %q", got, tt.addr)
+			}
 		})
 	}
 }
 
 func TestWithSrcAddrIPv6(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []struct {
 		name     string
 		addr     string
@@ -217,15 +240,17 @@ func TestWithSrcAddrIPv6(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pkt := mustNewPacket(t, WithSrcAddr(tt.addr))
-			Expect(pkt.SrcAddr).ToNot(BeNil())
-			Expect(pkt.SrcAddr.String()).To(Equal(tt.expected))
+			if pkt.SrcAddr == nil {
+				t.Fatalf("pkt.SrcAddr is nil")
+			}
+			if got := pkt.SrcAddr.String(); got != tt.expected {
+				t.Errorf("pkt.SrcAddr.String() = %q; want %q", got, tt.expected)
+			}
 		})
 	}
 }
 
 func TestWithDstAddrIPv4(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []struct {
 		name string
 		addr string
@@ -240,15 +265,17 @@ func TestWithDstAddrIPv4(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pkt := mustNewPacket(t, WithDstAddr(tt.addr))
-			Expect(pkt.DstAddr).ToNot(BeNil())
-			Expect(pkt.DstAddr.String()).To(Equal(tt.addr))
+			if pkt.DstAddr == nil {
+				t.Fatalf("pkt.DstAddr is nil")
+			}
+			if got := pkt.DstAddr.String(); got != tt.addr {
+				t.Errorf("pkt.DstAddr.String() = %q; want %q", got, tt.addr)
+			}
 		})
 	}
 }
 
 func TestWithDstAddrIPv6(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []struct {
 		name     string
 		addr     string
@@ -263,15 +290,17 @@ func TestWithDstAddrIPv6(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pkt := mustNewPacket(t, WithDstAddr(tt.addr))
-			Expect(pkt.DstAddr).ToNot(BeNil())
-			Expect(pkt.DstAddr.String()).To(Equal(tt.expected))
+			if pkt.DstAddr == nil {
+				t.Fatalf("pkt.DstAddr is nil")
+			}
+			if got := pkt.DstAddr.String(); got != tt.expected {
+				t.Errorf("pkt.DstAddr.String() = %q; want %q", got, tt.expected)
+			}
 		})
 	}
 }
 
 func TestWithInvalidAddr(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []struct {
 		name string
 		addr string
@@ -285,19 +314,25 @@ func TestWithInvalidAddr(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pkt, err := New(WithSrcAddr(tt.addr))
-			Expect(err).To(HaveOccurred())
-			Expect(pkt).To(BeNil())
+			if err == nil {
+				t.Errorf("WithSrcAddr(%q) expected error, got nil", tt.addr)
+			}
+			if pkt != nil {
+				t.Errorf("WithSrcAddr(%q) expected nil pkt, got %v", tt.addr, pkt)
+			}
 
 			pkt2, err := New(WithDstAddr(tt.addr))
-			Expect(err).To(HaveOccurred())
-			Expect(pkt2).To(BeNil())
+			if err == nil {
+				t.Errorf("WithDstAddr(%q) expected error, got nil", tt.addr)
+			}
+			if pkt2 != nil {
+				t.Errorf("WithDstAddr(%q) expected nil pkt, got %v", tt.addr, pkt2)
+			}
 		})
 	}
 }
 
 func TestNewMultipleOptions(t *testing.T) {
-	RegisterTestingT(t)
-
 	pkt := mustNewPacket(t,
 		WithProto(6),
 		WithSrcAddr("10.0.0.1"),
@@ -306,16 +341,24 @@ func TestNewMultipleOptions(t *testing.T) {
 		WithDstPort(80),
 	)
 
-	Expect(pkt.Proto).To(Equal(proto.TCP))
-	Expect(pkt.SrcAddr.String()).To(Equal("10.0.0.1"))
-	Expect(pkt.SrcPort).To(Equal(uint16(12345)))
-	Expect(pkt.DstAddr.String()).To(Equal("192.168.1.1"))
-	Expect(pkt.DstPort).To(Equal(uint16(80)))
+	if pkt.Proto != proto.TCP {
+		t.Errorf("pkt.Proto = %v; want %v", pkt.Proto, proto.TCP)
+	}
+	if got := pkt.SrcAddr.String(); got != "10.0.0.1" {
+		t.Errorf("pkt.SrcAddr = %q; want 10.0.0.1", got)
+	}
+	if pkt.SrcPort != 12345 {
+		t.Errorf("pkt.SrcPort = %d; want 12345", pkt.SrcPort)
+	}
+	if got := pkt.DstAddr.String(); got != "192.168.1.1" {
+		t.Errorf("pkt.DstAddr = %q; want 192.168.1.1", got)
+	}
+	if pkt.DstPort != 80 {
+		t.Errorf("pkt.DstPort = %d; want 80", pkt.DstPort)
+	}
 }
 
 func TestNewMultipleOptionsIPv6(t *testing.T) {
-	RegisterTestingT(t)
-
 	pkt := mustNewPacket(t,
 		WithProto(17),
 		WithSrcAddr("2001:db8::1"),
@@ -324,16 +367,24 @@ func TestNewMultipleOptionsIPv6(t *testing.T) {
 		WithDstPort(443),
 	)
 
-	Expect(pkt.Proto).To(Equal(proto.UDP))
-	Expect(pkt.SrcAddr.String()).To(Equal("2001:db8::1"))
-	Expect(pkt.SrcPort).To(Equal(uint16(54321)))
-	Expect(pkt.DstAddr.String()).To(Equal("cafe::1"))
-	Expect(pkt.DstPort).To(Equal(uint16(443)))
+	if pkt.Proto != proto.UDP {
+		t.Errorf("pkt.Proto = %v; want %v", pkt.Proto, proto.UDP)
+	}
+	if got := pkt.SrcAddr.String(); got != "2001:db8::1" {
+		t.Errorf("pkt.SrcAddr = %q; want 2001:db8::1", got)
+	}
+	if pkt.SrcPort != 54321 {
+		t.Errorf("pkt.SrcPort = %d; want 54321", pkt.SrcPort)
+	}
+	if got := pkt.DstAddr.String(); got != "cafe::1" {
+		t.Errorf("pkt.DstAddr = %q; want cafe::1", got)
+	}
+	if pkt.DstPort != 443 {
+		t.Errorf("pkt.DstPort = %d; want 443", pkt.DstPort)
+	}
 }
 
 func TestPacketStringIPv4(t *testing.T) {
-	RegisterTestingT(t)
-
 	fullPacket := mustNewPacket(t,
 		WithProto(proto.TCP),
 		WithSrcAddr("10.0.0.1"),
@@ -382,14 +433,14 @@ func TestPacketStringIPv4(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			Expect(tt.packet.String()).To(Equal(tt.expected))
+			if got := tt.packet.String(); got != tt.expected {
+				t.Errorf("packet.String() = %q; want %q", got, tt.expected)
+			}
 		})
 	}
 }
 
 func TestPacketStringIPv6(t *testing.T) {
-	RegisterTestingT(t)
-
 	fullPacket := mustNewPacket(t,
 		WithProto(proto.TCP),
 		WithSrcAddr("2001:db8::1"),
@@ -425,42 +476,43 @@ func TestPacketStringIPv6(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			Expect(tt.packet.String()).To(Equal(tt.expected))
+			if got := tt.packet.String(); got != tt.expected {
+				t.Errorf("packet.String() = %q; want %q", got, tt.expected)
+			}
 		})
 	}
 }
 
 func TestPacketStringEmptyPacket(t *testing.T) {
-	RegisterTestingT(t)
-
 	pkt := mustNewPacket(t)
 	result := pkt.String()
 	// Empty packet will have nil IPs which will be formatted as <nil>
-	Expect(result).To(Equal("0{<nil>:0-><nil>:0}"))
+	if result != "0{<nil>:0-><nil>:0}" {
+		t.Errorf("pkt.String() = %q; want %q", result, "0{<nil>:0-><nil>:0}")
+	}
 }
 
 func TestPacketStringPartialPacket(t *testing.T) {
-	RegisterTestingT(t)
-
 	// Only protocol
 	pkt1 := mustNewPacket(t, WithProto(proto.TCP))
-	result1 := pkt1.String()
-	Expect(result1).To(Equal("tcp{<nil>:0-><nil>:0}"))
+	if got := pkt1.String(); got != "tcp{<nil>:0-><nil>:0}" {
+		t.Errorf("pkt1.String() = %q; want %q", got, "tcp{<nil>:0-><nil>:0}")
+	}
 
 	// Only ports
 	pkt2 := mustNewPacket(t, WithSrcPort(1234), WithDstPort(5678))
-	result2 := pkt2.String()
-	Expect(result2).To(Equal("0{<nil>:1234-><nil>:5678}"))
+	if got := pkt2.String(); got != "0{<nil>:1234-><nil>:5678}" {
+		t.Errorf("pkt2.String() = %q; want %q", got, "0{<nil>:1234-><nil>:5678}")
+	}
 
 	// Only addresses
 	pkt3 := mustNewPacket(t, WithSrcAddr("10.0.0.1"), WithDstAddr("192.168.1.1"))
-	result3 := pkt3.String()
-	Expect(result3).To(Equal("0{10.0.0.1:0->192.168.1.1:0}"))
+	if got := pkt3.String(); got != "0{10.0.0.1:0->192.168.1.1:0}" {
+		t.Errorf("pkt3.String() = %q; want %q", got, "0{10.0.0.1:0->192.168.1.1:0}")
+	}
 }
 
 func TestPacketOptionsCanBeReused(t *testing.T) {
-	RegisterTestingT(t)
-
 	protoOpt := WithProto(proto.TCP)
 	srcPortOpt := WithSrcPort(80)
 	dstPortOpt := WithDstPort(443)
@@ -468,14 +520,18 @@ func TestPacketOptionsCanBeReused(t *testing.T) {
 	pkt1 := mustNewPacket(t, protoOpt, srcPortOpt, dstPortOpt)
 	pkt2 := mustNewPacket(t, protoOpt, srcPortOpt, dstPortOpt)
 
-	Expect(pkt1.Proto).To(Equal(pkt2.Proto))
-	Expect(pkt1.SrcPort).To(Equal(pkt2.SrcPort))
-	Expect(pkt1.DstPort).To(Equal(pkt2.DstPort))
+	if pkt1.Proto != pkt2.Proto {
+		t.Errorf("pkt1.Proto (%v) != pkt2.Proto (%v)", pkt1.Proto, pkt2.Proto)
+	}
+	if pkt1.SrcPort != pkt2.SrcPort {
+		t.Errorf("pkt1.SrcPort (%d) != pkt2.SrcPort (%d)", pkt1.SrcPort, pkt2.SrcPort)
+	}
+	if pkt1.DstPort != pkt2.DstPort {
+		t.Errorf("pkt1.DstPort (%d) != pkt2.DstPort (%d)", pkt1.DstPort, pkt2.DstPort)
+	}
 }
 
 func TestPacketOptionsOrderIndependent(t *testing.T) {
-	RegisterTestingT(t)
-
 	pkt1 := mustNewPacket(t,
 		WithProto(proto.TCP),
 		WithSrcAddr("10.0.0.1"),
@@ -492,9 +548,19 @@ func TestPacketOptionsOrderIndependent(t *testing.T) {
 		WithProto(proto.TCP),
 	)
 
-	Expect(pkt1.Proto).To(Equal(pkt2.Proto))
-	Expect(pkt1.SrcAddr.String()).To(Equal(pkt2.SrcAddr.String()))
-	Expect(pkt1.SrcPort).To(Equal(pkt2.SrcPort))
-	Expect(pkt1.DstAddr.String()).To(Equal(pkt2.DstAddr.String()))
-	Expect(pkt1.DstPort).To(Equal(pkt2.DstPort))
+	if pkt1.Proto != pkt2.Proto {
+		t.Errorf("pkt1.Proto (%v) != pkt2.Proto (%v)", pkt1.Proto, pkt2.Proto)
+	}
+	if pkt1.SrcAddr.String() != pkt2.SrcAddr.String() {
+		t.Errorf("pkt1.SrcAddr (%s) != pkt2.SrcAddr (%s)", pkt1.SrcAddr, pkt2.SrcAddr)
+	}
+	if pkt1.SrcPort != pkt2.SrcPort {
+		t.Errorf("pkt1.SrcPort (%d) != pkt2.SrcPort (%d)", pkt1.SrcPort, pkt2.SrcPort)
+	}
+	if pkt1.DstAddr.String() != pkt2.DstAddr.String() {
+		t.Errorf("pkt1.DstAddr (%s) != pkt2.DstAddr (%s)", pkt1.DstAddr, pkt2.DstAddr)
+	}
+	if pkt1.DstPort != pkt2.DstPort {
+		t.Errorf("pkt1.DstPort (%d) != pkt2.DstPort (%d)", pkt1.DstPort, pkt2.DstPort)
+	}
 }

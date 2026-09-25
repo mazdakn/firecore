@@ -2,33 +2,41 @@ package payload
 
 import (
 	"testing"
-
-	. "github.com/onsi/gomega"
 )
 
 func TestNew(t *testing.T) {
-	RegisterTestingT(t)
-
 	matcher, err := New(`GET /users/\d+`)
-	Expect(err).ToNot(HaveOccurred())
-	Expect(matcher).ToNot(BeNil())
-	Expect(matcher.String()).To(Equal(`GET /users/\d+`))
+	if err != nil {
+		t.Fatalf("New() unexpected error: %v", err)
+	}
+	if matcher == nil {
+		t.Fatal("New() returned nil matcher")
+	}
+	if got := matcher.String(); got != `GET /users/\d+` {
+		t.Errorf("matcher.String() = %q; want %q", got, `GET /users/\d+`)
+	}
 }
 
 func TestNewInvalidPattern(t *testing.T) {
-	RegisterTestingT(t)
-
 	matcher, err := New(`[`)
-	Expect(err).To(HaveOccurred())
-	Expect(matcher).To(BeNil())
+	if err == nil {
+		t.Fatal("New(`[`) expected error, got nil")
+	}
+	if matcher != nil {
+		t.Errorf("New(`[`) expected nil matcher, got %v", matcher)
+	}
 }
 
 func TestMatch(t *testing.T) {
-	RegisterTestingT(t)
-
 	matcher, err := New(`secret=\w+`)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("New() unexpected error: %v", err)
+	}
 
-	Expect(matcher.Match([]byte("GET /?secret=token"))).To(BeTrue())
-	Expect(matcher.Match([]byte("GET /?public=true"))).To(BeFalse())
+	if !matcher.Match([]byte("GET /?secret=token")) {
+		t.Error("matcher.Match() expected true for matching payload")
+	}
+	if matcher.Match([]byte("GET /?public=true")) {
+		t.Error("matcher.Match() expected false for non-matching payload")
+	}
 }

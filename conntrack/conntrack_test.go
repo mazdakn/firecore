@@ -6,34 +6,41 @@ import (
 
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/proto"
-	. "github.com/onsi/gomega"
 )
 
 func mustNewPacket(t testing.TB, opts ...packet.Option) *packet.Packet {
 	t.Helper()
 	pkt, err := packet.New(opts...)
-	Expect(err).ToNot(HaveOccurred())
+	if err != nil {
+		t.Fatalf("packet.New: %v", err)
+	}
 	return pkt
 }
 
 func TestParseState(t *testing.T) {
-	RegisterTestingT(t)
-
 	state, err := ParseState("NEW")
-	Expect(err).To(BeNil())
-	Expect(state).To(Equal(StateNew))
+	if err != nil {
+		t.Fatalf("ParseState(NEW) unexpected error: %v", err)
+	}
+	if state != StateNew {
+		t.Errorf("ParseState(NEW) = %v; want %v", state, StateNew)
+	}
 
 	state, err = ParseState("established")
-	Expect(err).To(BeNil())
-	Expect(state).To(Equal(StateEstablished))
+	if err != nil {
+		t.Fatalf("ParseState(established) unexpected error: %v", err)
+	}
+	if state != StateEstablished {
+		t.Errorf("ParseState(established) = %v; want %v", state, StateEstablished)
+	}
 
 	_, err = ParseState("related")
-	Expect(err).ToNot(BeNil())
+	if err == nil {
+		t.Fatal("ParseState(related) expected error, got nil")
+	}
 }
 
 func TestTrackerLookupAndCommitAccepted(t *testing.T) {
-	RegisterTestingT(t)
-
 	tracker := NewTracker()
 	request := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
@@ -51,42 +58,57 @@ func TestTrackerLookupAndCommitAccepted(t *testing.T) {
 	)
 
 	state, err := tracker.Lookup(request)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(state).To(Equal(StateNew))
+	if err != nil {
+		t.Fatalf("tracker.Lookup(request) unexpected error: %v", err)
+	}
+	if state != StateNew {
+		t.Errorf("state = %v; want %v", state, StateNew)
+	}
 
 	state, err = tracker.Lookup(reply)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(state).To(Equal(StateNew))
+	if err != nil {
+		t.Fatalf("tracker.Lookup(reply) unexpected error: %v", err)
+	}
+	if state != StateNew {
+		t.Errorf("state = %v; want %v", state, StateNew)
+	}
 
-	Expect(tracker.CommitAccepted(request)).To(Succeed())
+	if err := tracker.CommitAccepted(request); err != nil {
+		t.Fatalf("tracker.CommitAccepted(request) unexpected error: %v", err)
+	}
 
 	state, err = tracker.Lookup(request)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(state).To(Equal(StateEstablished))
+	if err != nil {
+		t.Fatalf("tracker.Lookup(request) unexpected error: %v", err)
+	}
+	if state != StateEstablished {
+		t.Errorf("state = %v; want %v", state, StateEstablished)
+	}
 
 	state, err = tracker.Lookup(reply)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(state).To(Equal(StateEstablished))
+	if err != nil {
+		t.Fatalf("tracker.Lookup(reply) unexpected error: %v", err)
+	}
+	if state != StateEstablished {
+		t.Errorf("state = %v; want %v", state, StateEstablished)
+	}
 }
 
 func TestTrackerLookupReturnsErrorForNilPacket(t *testing.T) {
-	RegisterTestingT(t)
-
 	tracker := NewTracker()
-	_, err := tracker.Lookup(nil)
-	Expect(err).To(HaveOccurred())
+	if _, err := tracker.Lookup(nil); err == nil {
+		t.Fatal("tracker.Lookup(nil) expected error, got nil")
+	}
 }
 
 func TestTrackerCommitAcceptedReturnsErrorForNilPacket(t *testing.T) {
-	RegisterTestingT(t)
-
 	tracker := NewTracker()
-	Expect(tracker.CommitAccepted(nil)).To(HaveOccurred())
+	if err := tracker.CommitAccepted(nil); err == nil {
+		t.Fatal("tracker.CommitAccepted(nil) expected error, got nil")
+	}
 }
 
 func TestTrackerConcurrentAccess(t *testing.T) {
-	RegisterTestingT(t)
-
 	tracker := NewTracker()
 	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
@@ -106,8 +128,12 @@ func TestTrackerConcurrentAccess(t *testing.T) {
 	wg.Wait()
 
 	state, err := tracker.Lookup(pkt)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(state).To(Equal(StateEstablished))
+	if err != nil {
+		t.Fatalf("tracker.Lookup(pkt) unexpected error: %v", err)
+	}
+	if state != StateEstablished {
+		t.Errorf("state = %v; want %v", state, StateEstablished)
+	}
 }
 
 func BenchmarkTrackerLookup(b *testing.B) {

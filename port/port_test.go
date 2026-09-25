@@ -2,47 +2,69 @@ package port
 
 import (
 	"testing"
-
-	. "github.com/onsi/gomega"
 )
 
 func TestPortResolve(t *testing.T) {
-	RegisterTestingT(t)
-
 	// Numeric port: Resolve returns Number unchanged.
-	Expect(Port{Number: 80}.Resolve()).To(Equal(uint16(80)))
-	Expect(Port{Number: 0}.Resolve()).To(Equal(uint16(0)))
-	Expect(Port{Number: 65535}.Resolve()).To(Equal(uint16(65535)))
+	if got := (Port{Number: 80}.Resolve()); got != 80 {
+		t.Errorf("Port{Number: 80}.Resolve() = %d; want 80", got)
+	}
+	if got := (Port{Number: 0}.Resolve()); got != 0 {
+		t.Errorf("Port{Number: 0}.Resolve() = %d; want 0", got)
+	}
+	if got := (Port{Number: 65535}.Resolve()); got != 65535 {
+		t.Errorf("Port{Number: 65535}.Resolve() = %d; want 65535", got)
+	}
 
 	// Named port: Resolve looks up the number from wellKnownPorts.
-	Expect(Port{Name: "http"}.Resolve()).To(Equal(uint16(80)))
-	Expect(Port{Name: "https"}.Resolve()).To(Equal(uint16(443)))
-	Expect(Port{Name: "ssh"}.Resolve()).To(Equal(uint16(22)))
-	Expect(Port{Name: "dns"}.Resolve()).To(Equal(uint16(53)))
+	if got := (Port{Name: "http"}.Resolve()); got != 80 {
+		t.Errorf("Port{Name: http}.Resolve() = %d; want 80", got)
+	}
+	if got := (Port{Name: "https"}.Resolve()); got != 443 {
+		t.Errorf("Port{Name: https}.Resolve() = %d; want 443", got)
+	}
+	if got := (Port{Name: "ssh"}.Resolve()); got != 22 {
+		t.Errorf("Port{Name: ssh}.Resolve() = %d; want 22", got)
+	}
+	if got := (Port{Name: "dns"}.Resolve()); got != 53 {
+		t.Errorf("Port{Name: dns}.Resolve() = %d; want 53", got)
+	}
 
 	// Name is case-insensitive.
-	Expect(Port{Name: "HTTP"}.Resolve()).To(Equal(uint16(80)))
-	Expect(Port{Name: "HTTPS"}.Resolve()).To(Equal(uint16(443)))
+	if got := (Port{Name: "HTTP"}.Resolve()); got != 80 {
+		t.Errorf("Port{Name: HTTP}.Resolve() = %d; want 80", got)
+	}
+	if got := (Port{Name: "HTTPS"}.Resolve()); got != 443 {
+		t.Errorf("Port{Name: HTTPS}.Resolve() = %d; want 443", got)
+	}
 
 	// Named port with Number already set: name takes precedence.
-	Expect(Port{Number: 0, Name: "http"}.Resolve()).To(Equal(uint16(80)))
+	if got := (Port{Number: 0, Name: "http"}.Resolve()); got != 80 {
+		t.Errorf("Port{Number: 0, Name: http}.Resolve() = %d; want 80", got)
+	}
 
 	// Unknown name with Number: falls back to Number.
-	Expect(Port{Number: 9999, Name: "unknown"}.Resolve()).To(Equal(uint16(9999)))
+	if got := (Port{Number: 9999, Name: "unknown"}.Resolve()); got != 9999 {
+		t.Errorf("Port{Number: 9999, Name: unknown}.Resolve() = %d; want 9999", got)
+	}
 }
 
 func TestPortConstants(t *testing.T) {
-	RegisterTestingT(t)
-
-	Expect(wellKnownPorts["http"]).To(Equal(uint16(80)))
-	Expect(wellKnownPorts["https"]).To(Equal(uint16(443)))
-	Expect(wellKnownPorts["ssh"]).To(Equal(uint16(22)))
-	Expect(wellKnownPorts["dns"]).To(Equal(uint16(53)))
+	if got := wellKnownPorts["http"]; got != 80 {
+		t.Errorf("wellKnownPorts[http] = %d; want 80", got)
+	}
+	if got := wellKnownPorts["https"]; got != 443 {
+		t.Errorf("wellKnownPorts[https] = %d; want 443", got)
+	}
+	if got := wellKnownPorts["ssh"]; got != 22 {
+		t.Errorf("wellKnownPorts[ssh] = %d; want 22", got)
+	}
+	if got := wellKnownPorts["dns"]; got != 53 {
+		t.Errorf("wellKnownPorts[dns] = %d; want 53", got)
+	}
 }
 
 func TestPortString(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []struct {
 		port     Port
 		expected string
@@ -60,24 +82,32 @@ func TestPortString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.expected, func(t *testing.T) {
-			Expect(tt.port.String()).To(Equal(tt.expected))
+			if got := tt.port.String(); got != tt.expected {
+				t.Errorf("Port.String() = %q; want %q", got, tt.expected)
+			}
 		})
 	}
 }
 
 func TestPortIsRange(t *testing.T) {
-	RegisterTestingT(t)
-
-	Expect(Port{Number: 80}.IsRange()).To(BeFalse())
-	Expect(Port{Number: 80, End: 80}.IsRange()).To(BeFalse())
-	Expect(Port{Number: 80, End: 443}.IsRange()).To(BeTrue())
-	Expect(Port{Number: 0, End: 1023}.IsRange()).To(BeTrue())
-	Expect(Port{Number: 0, End: 0}.IsRange()).To(BeFalse())
+	if got := (Port{Number: 80}.IsRange()); got != false {
+		t.Errorf("Port{Number: 80}.IsRange() = %v; want false", got)
+	}
+	if got := (Port{Number: 80, End: 80}.IsRange()); got != false {
+		t.Errorf("Port{Number: 80, End: 80}.IsRange() = %v; want false", got)
+	}
+	if got := (Port{Number: 80, End: 443}.IsRange()); got != true {
+		t.Errorf("Port{Number: 80, End: 443}.IsRange() = %v; want true", got)
+	}
+	if got := (Port{Number: 0, End: 1023}.IsRange()); got != true {
+		t.Errorf("Port{Number: 0, End: 1023}.IsRange() = %v; want true", got)
+	}
+	if got := (Port{Number: 0, End: 0}.IsRange()); got != false {
+		t.Errorf("Port{Number: 0, End: 0}.IsRange() = %v; want false", got)
+	}
 }
 
 func TestPortParse(t *testing.T) {
-	RegisterTestingT(t)
-
 	tests := []struct {
 		input     string
 		expected  *Port
@@ -113,12 +143,22 @@ func TestPortParse(t *testing.T) {
 		t.Run(tt.input, func(t *testing.T) {
 			p, err := Parse(tt.input)
 			if tt.shouldErr {
-				Expect(err).To(HaveOccurred())
-				Expect(p).To(BeNil())
+				if err == nil {
+					t.Fatalf("Parse(%q) expected error, got nil", tt.input)
+				}
+				if p != nil {
+					t.Fatalf("Parse(%q) expected nil port, got %+v", tt.input, p)
+				}
 			} else {
-				Expect(err).ToNot(HaveOccurred())
-				Expect(p).ToNot(BeNil())
-				Expect(*p).To(Equal(*tt.expected))
+				if err != nil {
+					t.Fatalf("Parse(%q) unexpected error: %v", tt.input, err)
+				}
+				if p == nil {
+					t.Fatalf("Parse(%q) expected non-nil port", tt.input)
+				}
+				if *p != *tt.expected {
+					t.Errorf("Parse(%q) = %+v; want %+v", tt.input, *p, *tt.expected)
+				}
 			}
 		})
 	}

@@ -1,111 +1,155 @@
 package firecore
 
 import (
+	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/mazdakn/firecore/conntrack"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/proto"
-	. "github.com/onsi/gomega"
 )
 
-func expectMatchResult(result *Result, expectedVerdict Action, expectedRule string) {
-	Expect(result.Verdict).To(HaveValue(Equal(expectedVerdict)))
-	Expect(result.Trace).NotTo(BeEmpty())
-	Expect(result.Trace[len(result.Trace)-1].Name).To(Equal(expectedRule))
+func expectMatchResult(t *testing.T, result *Result, expectedVerdict Action, expectedRule string) {
+	t.Helper()
+	if result.Verdict == nil {
+		t.Fatalf("expected verdict %v, got nil", expectedVerdict)
+	}
+	if *result.Verdict != expectedVerdict {
+		t.Errorf("expected verdict %v, got %v", expectedVerdict, *result.Verdict)
+	}
+	if len(result.Trace) == 0 {
+		t.Fatal("expected non-empty trace")
+	}
+	if last := result.Trace[len(result.Trace)-1].Name; last != expectedRule {
+		t.Errorf("expected last trace rule %q, got %q", expectedRule, last)
+	}
 }
 
 func newRule(opts ...RuleOption) *Rule {
 	r, err := NewRule(opts...)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		panic(fmt.Sprintf("NewRule: %v", err))
+	}
 	return r
 }
 
 func newTable(name string, order uint64, defaultAction Action) *Table {
 	tbl, err := NewTable(name, order, defaultAction)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		panic(fmt.Sprintf("NewTable: %v", err))
+	}
 	return tbl
 }
 
 func newChain(name string) *Chain {
 	c, err := NewChain(name)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		panic(fmt.Sprintf("NewChain: %v", err))
+	}
 	return c
 }
 
 func newEngine(opts ...Option) *Engine {
 	e, err := New(opts...)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		panic(fmt.Sprintf("New: %v", err))
+	}
 	return e
 }
 
 func TestNew(t *testing.T) {
-	RegisterTestingT(t)
-
 	engine, err := New()
-	Expect(err).NotTo(HaveOccurred())
-	Expect(engine).ToNot(BeNil())
-	Expect(engine.Tables).To(BeNil())
-	Expect(engine.tracker).To(BeNil())
+	if err != nil {
+		t.Fatalf("New() unexpected error: %v", err)
+	}
+	if engine == nil {
+		t.Fatal("New() returned nil engine")
+	}
+	if engine.Tables != nil {
+		t.Errorf("engine.Tables = %v; want nil", engine.Tables)
+	}
+	if engine.tracker != nil {
+		t.Errorf("engine.tracker = %v; want nil", engine.tracker)
+	}
 }
 
 func TestNewAppliesOptions(t *testing.T) {
-	RegisterTestingT(t)
-
 	engine, err := New(WithConntrack())
-	Expect(err).NotTo(HaveOccurred())
-
-	Expect(engine.Tables).To(BeNil())
-	Expect(engine.tracker).NotTo(BeNil())
+	if err != nil {
+		t.Fatalf("New(WithConntrack()) unexpected error: %v", err)
+	}
+	if engine.Tables != nil {
+		t.Errorf("engine.Tables = %v; want nil", engine.Tables)
+	}
+	if engine.tracker == nil {
+		t.Errorf("engine.tracker = nil; want non-nil")
+	}
 }
 
 func TestNewNilOptionFails(t *testing.T) {
-	RegisterTestingT(t)
-
 	engine, err := New(nil)
-	Expect(err).To(HaveOccurred())
-	Expect(engine).To(BeNil())
+	if err == nil {
+		t.Fatal("New(nil) expected error, got nil")
+	}
+	if engine != nil {
+		t.Errorf("New(nil) expected nil engine, got %v", engine)
+	}
 }
 
 func TestAddTable(t *testing.T) {
-	RegisterTestingT(t)
-
 	first := newTable("first", 1, Drop)
 	second := newTable("second", 2, Drop)
 	engine := newEngine()
 
-	Expect(engine.AddTable(first)).To(Succeed())
-	Expect(engine.AddTable(second)).To(Succeed())
+	if err := engine.AddTable(first); err != nil {
+		t.Fatalf("AddTable(first) unexpected error: %v", err)
+	}
+	if err := engine.AddTable(second); err != nil {
+		t.Fatalf("AddTable(second) unexpected error: %v", err)
+	}
 
-	Expect(engine.Tables).To(Equal([]*Table{first, second}))
+	if !slices.Equal(engine.Tables, []*Table{first, second}) {
+		t.Errorf("engine.Tables = %v; want [%v, %v]", engine.Tables, first, second)
+	}
 }
 
 func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
-	RegisterTestingT(t)
-
 	acceptTable := newTable("accept-table", 2, Drop)
 	acceptChain := newChain("default")
-	Expect(acceptChain.AddRule(newRule(
+	if err := acceptChain.AddRule(newRule(
 		WithName("accept-http"),
 		WithDstPort(80),
 		WithProto(proto.TCP),
 		WithAction(Accept),
-	))).To(Succeed())
-	Expect(acceptTable.AddChain(acceptChain)).To(Succeed())
+	)); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := acceptTable.AddChain(acceptChain); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
 
 	passTable := newTable("pass-table", 1, Drop)
 	passChain := newChain("default")
-	Expect(passChain.AddRule(newRule(
+	if err := passChain.AddRule(newRule(
 		WithName("pass-http"),
 		WithDstPort(80),
 		WithProto(proto.TCP),
 		WithAction(Pass),
-	))).To(Succeed())
-	Expect(passTable.AddChain(passChain)).To(Succeed())
+	)); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := passTable.AddChain(passChain); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
 
 	engine := newEngine()
-	Expect(engine.AddTable(acceptTable)).To(Succeed())
-	Expect(engine.AddTable(passTable)).To(Succeed())
+	if err := engine.AddTable(acceptTable); err != nil {
+		t.Fatalf("AddTable unexpected error: %v", err)
+	}
+	if err := engine.AddTable(passTable); err != nil {
+		t.Fatalf("AddTable unexpected error: %v", err)
+	}
 
 	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
@@ -116,40 +160,62 @@ func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 	)
 	result, err := engine.Evaluate(pkt)
 
-	Expect(err).NotTo(HaveOccurred())
-	Expect(engine.Tables).To(Equal([]*Table{passTable, acceptTable}))
-	Expect(result.Verdict).To(HaveValue(Equal(Accept)))
-	Expect(result.Trace).To(HaveLen(2))
-	Expect(result.Trace[0].Name).To(Equal("pass-http"))
-	Expect(result.Trace[1].Name).To(Equal("accept-http"))
+	if err != nil {
+		t.Fatalf("engine.Evaluate unexpected error: %v", err)
+	}
+	if !slices.Equal(engine.Tables, []*Table{passTable, acceptTable}) {
+		t.Errorf("engine.Tables = %v; want [%v, %v]", engine.Tables, passTable, acceptTable)
+	}
+	if result.Verdict == nil || *result.Verdict != Accept {
+		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Accept)
+	}
+	if len(result.Trace) != 2 {
+		t.Fatalf("len(result.Trace) = %d; want 2", len(result.Trace))
+	}
+	if result.Trace[0].Name != "pass-http" {
+		t.Errorf("result.Trace[0].Name = %q; want pass-http", result.Trace[0].Name)
+	}
+	if result.Trace[1].Name != "accept-http" {
+		t.Errorf("result.Trace[1].Name = %q; want accept-http", result.Trace[1].Name)
+	}
 }
 
 func TestEvaluatePassesToNextTable(t *testing.T) {
-	RegisterTestingT(t)
-
 	passTable := newTable("pass-table", 1, Drop)
 	passChain := newChain("default")
-	Expect(passChain.AddRule(newRule(
+	if err := passChain.AddRule(newRule(
 		WithName("pass-http"),
 		WithDstPort(80),
 		WithProto(proto.TCP),
 		WithAction(Pass),
-	))).To(Succeed())
-	Expect(passTable.AddChain(passChain)).To(Succeed())
+	)); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := passTable.AddChain(passChain); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
 
 	acceptTable := newTable("accept-table", 2, Drop)
 	acceptChain := newChain("default")
-	Expect(acceptChain.AddRule(newRule(
+	if err := acceptChain.AddRule(newRule(
 		WithName("accept-http"),
 		WithDstPort(80),
 		WithProto(proto.TCP),
 		WithAction(Accept),
-	))).To(Succeed())
-	Expect(acceptTable.AddChain(acceptChain)).To(Succeed())
+	)); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := acceptTable.AddChain(acceptChain); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
 
 	engine := newEngine()
-	Expect(engine.AddTable(passTable)).To(Succeed())
-	Expect(engine.AddTable(acceptTable)).To(Succeed())
+	if err := engine.AddTable(passTable); err != nil {
+		t.Fatalf("AddTable unexpected error: %v", err)
+	}
+	if err := engine.AddTable(acceptTable); err != nil {
+		t.Fatalf("AddTable unexpected error: %v", err)
+	}
 
 	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
@@ -160,32 +226,46 @@ func TestEvaluatePassesToNextTable(t *testing.T) {
 	)
 	result, err := engine.Evaluate(pkt)
 
-	Expect(err).NotTo(HaveOccurred())
-	Expect(result.Verdict).To(HaveValue(Equal(Accept)))
-	Expect(result.Trace).To(HaveLen(2))
-	Expect(result.Trace[0].Name).To(Equal("pass-http"))
-	Expect(result.Trace[1].Name).To(Equal("accept-http"))
+	if err != nil {
+		t.Fatalf("engine.Evaluate unexpected error: %v", err)
+	}
+	if result.Verdict == nil || *result.Verdict != Accept {
+		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Accept)
+	}
+	if len(result.Trace) != 2 {
+		t.Fatalf("len(result.Trace) = %d; want 2", len(result.Trace))
+	}
+	if result.Trace[0].Name != "pass-http" {
+		t.Errorf("result.Trace[0].Name = %q; want pass-http", result.Trace[0].Name)
+	}
+	if result.Trace[1].Name != "accept-http" {
+		t.Errorf("result.Trace[1].Name = %q; want accept-http", result.Trace[1].Name)
+	}
 }
 
 func TestEvaluateTracksEstablishedFlows(t *testing.T) {
-	RegisterTestingT(t)
-
 	stateful := newTable("stateful", 1, Drop)
 	defaultChain := newChain("default")
-	Expect(defaultChain.AddRule(newRule(
+	if err := defaultChain.AddRule(newRule(
 		WithName("allow-new-http"),
 		WithConnState(conntrack.StateNew),
 		WithDstPort(80),
 		WithProto(proto.TCP),
 		WithAction(Accept),
-	))).To(Succeed())
-	Expect(defaultChain.AddRule(newRule(
+	)); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := defaultChain.AddRule(newRule(
 		WithName("allow-established"),
 		WithConnState(conntrack.StateEstablished),
 		WithProto(proto.TCP),
 		WithAction(Accept),
-	))).To(Succeed())
-	Expect(stateful.AddChain(defaultChain)).To(Succeed())
+	)); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := stateful.AddChain(defaultChain); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
 
 	request := mustNewPacket(t,
 		packet.WithName("request"),
@@ -205,38 +285,53 @@ func TestEvaluateTracksEstablishedFlows(t *testing.T) {
 	)
 
 	engine := newEngine(WithConntrack())
-	Expect(engine.AddTable(stateful)).To(Succeed())
+	if err := engine.AddTable(stateful); err != nil {
+		t.Fatalf("AddTable unexpected error: %v", err)
+	}
 
 	requestResult, err := engine.Evaluate(request)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("Evaluate(request) unexpected error: %v", err)
+	}
 	replyResult, err := engine.Evaluate(reply)
+	if err != nil {
+		t.Fatalf("Evaluate(reply) unexpected error: %v", err)
+	}
 
-	Expect(err).NotTo(HaveOccurred())
-	Expect(requestResult.ConnState).To(HaveValue(Equal(conntrack.StateNew)))
-	expectMatchResult(requestResult, Accept, "allow-new-http")
-	Expect(replyResult.ConnState).To(HaveValue(Equal(conntrack.StateEstablished)))
-	expectMatchResult(replyResult, Accept, "allow-established")
+	if requestResult.ConnState == nil || *requestResult.ConnState != conntrack.StateNew {
+		t.Errorf("requestResult.ConnState = %v; want %v", requestResult.ConnState, conntrack.StateNew)
+	}
+	expectMatchResult(t, requestResult, Accept, "allow-new-http")
+
+	if replyResult.ConnState == nil || *replyResult.ConnState != conntrack.StateEstablished {
+		t.Errorf("replyResult.ConnState = %v; want %v", replyResult.ConnState, conntrack.StateEstablished)
+	}
+	expectMatchResult(t, replyResult, Accept, "allow-established")
 }
 
 func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
-	RegisterTestingT(t)
-
 	stateful := newTable("stateful", 1, Drop)
 	defaultChain := newChain("default")
-	Expect(defaultChain.AddRule(newRule(
+	if err := defaultChain.AddRule(newRule(
 		WithName("allow-new-http"),
 		WithConnState(conntrack.StateNew),
 		WithDstPort(80),
 		WithProto(proto.TCP),
 		WithAction(Accept),
-	))).To(Succeed())
-	Expect(defaultChain.AddRule(newRule(
+	)); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := defaultChain.AddRule(newRule(
 		WithName("allow-established"),
 		WithConnState(conntrack.StateEstablished),
 		WithProto(proto.TCP),
 		WithAction(Accept),
-	))).To(Succeed())
-	Expect(stateful.AddChain(defaultChain)).To(Succeed())
+	)); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := stateful.AddChain(defaultChain); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
 
 	request := mustNewPacket(t,
 		packet.WithName("request"),
@@ -256,46 +351,69 @@ func TestEvaluateWithoutConntrackDisablesStatefulMatching(t *testing.T) {
 	)
 
 	engine := newEngine()
-	Expect(engine.AddTable(stateful)).To(Succeed())
+	if err := engine.AddTable(stateful); err != nil {
+		t.Fatalf("AddTable unexpected error: %v", err)
+	}
 
 	requestResult, err := engine.Evaluate(request)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		t.Fatalf("Evaluate(request) unexpected error: %v", err)
+	}
 	replyResult, err := engine.Evaluate(reply)
+	if err != nil {
+		t.Fatalf("Evaluate(reply) unexpected error: %v", err)
+	}
 
-	Expect(err).NotTo(HaveOccurred())
-	Expect(requestResult.ConnState).To(BeNil())
-	expectMatchResult(requestResult, Accept, "allow-new-http")
-	Expect(replyResult.ConnState).To(BeNil())
-	expectMatchResult(replyResult, Drop, "table stateful default action")
+	if requestResult.ConnState != nil {
+		t.Errorf("requestResult.ConnState = %v; want nil", *requestResult.ConnState)
+	}
+	expectMatchResult(t, requestResult, Accept, "allow-new-http")
+
+	if replyResult.ConnState != nil {
+		t.Errorf("replyResult.ConnState = %v; want nil", *replyResult.ConnState)
+	}
+	expectMatchResult(t, replyResult, Drop, "table stateful default action")
 }
 
 func TestEvaluateSupportsJumpChains(t *testing.T) {
-	RegisterTestingT(t)
-
 	tbl := newTable("main", 1, Drop)
 	entry := newChain("entry")
-	Expect(entry.AddRule(newRule(
+	if err := entry.AddRule(newRule(
 		WithName("jump-admin"),
 		WithSrcNet("10.0.0.0/8"),
 		WithJump("admin"),
-	))).To(Succeed())
-	Expect(entry.AddRule(newRule(
+	)); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := entry.AddRule(newRule(
 		WithName("deny-all"),
 		WithAction(Drop),
-	))).To(Succeed())
+	)); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
 	admin := newChain("admin")
-	Expect(admin.AddRule(newRule(
+	if err := admin.AddRule(newRule(
 		WithName("allow-admin-http"),
 		WithDstPort(80),
 		WithProto(proto.TCP),
 		WithAction(Accept),
-	))).To(Succeed())
-	Expect(tbl.AddChain(entry)).To(Succeed())
-	Expect(tbl.AddChain(admin)).To(Succeed())
-	Expect(tbl.SetEntryChain("entry")).To(Succeed())
+	)); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := tbl.AddChain(entry); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
+	if err := tbl.AddChain(admin); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
+	if err := tbl.SetEntryChain("entry"); err != nil {
+		t.Fatalf("SetEntryChain unexpected error: %v", err)
+	}
 
 	engine := newEngine()
-	Expect(engine.AddTable(tbl)).To(Succeed())
+	if err := engine.AddTable(tbl); err != nil {
+		t.Fatalf("AddTable unexpected error: %v", err)
+	}
 
 	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
@@ -306,27 +424,43 @@ func TestEvaluateSupportsJumpChains(t *testing.T) {
 	)
 	result, err := engine.Evaluate(pkt)
 
-	Expect(err).NotTo(HaveOccurred())
-	Expect(result.Verdict).To(HaveValue(Equal(Accept)))
-	Expect(result.Trace).To(HaveLen(2))
-	Expect(result.Trace[0].Name).To(Equal("jump-admin"))
-	Expect(result.Trace[1].Name).To(Equal("allow-admin-http"))
+	if err != nil {
+		t.Fatalf("Evaluate unexpected error: %v", err)
+	}
+	if result.Verdict == nil || *result.Verdict != Accept {
+		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Accept)
+	}
+	if len(result.Trace) != 2 {
+		t.Fatalf("len(result.Trace) = %d; want 2", len(result.Trace))
+	}
+	if result.Trace[0].Name != "jump-admin" {
+		t.Errorf("result.Trace[0].Name = %q; want jump-admin", result.Trace[0].Name)
+	}
+	if result.Trace[1].Name != "allow-admin-http" {
+		t.Errorf("result.Trace[1].Name = %q; want allow-admin-http", result.Trace[1].Name)
+	}
 }
 
 func TestEvaluateReturnsErrorForMissingJumpTarget(t *testing.T) {
-	RegisterTestingT(t)
-
 	tbl := newTable("main", 1, Drop)
 	entry := newChain("entry")
-	Expect(entry.AddRule(newRule(
+	if err := entry.AddRule(newRule(
 		WithName("jump-missing"),
 		WithJump("missing"),
-	))).To(Succeed())
-	Expect(tbl.AddChain(entry)).To(Succeed())
-	Expect(tbl.SetEntryChain("entry")).To(Succeed())
+	)); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := tbl.AddChain(entry); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
+	if err := tbl.SetEntryChain("entry"); err != nil {
+		t.Fatalf("SetEntryChain unexpected error: %v", err)
+	}
 
 	engine := newEngine()
-	Expect(engine.AddTable(tbl)).To(Succeed())
+	if err := engine.AddTable(tbl); err != nil {
+		t.Fatalf("AddTable unexpected error: %v", err)
+	}
 
 	pkt := mustNewPacket(t,
 		packet.WithSrcAddr("10.0.0.1"),
@@ -334,6 +468,11 @@ func TestEvaluateReturnsErrorForMissingJumpTarget(t *testing.T) {
 	)
 	result, err := engine.Evaluate(pkt)
 
-	Expect(err).To(MatchError(`evaluate in table "main": chain "missing" not found`))
-	Expect(result).To(BeNil())
+	wantErr := `evaluate in table "main": chain "missing" not found`
+	if err == nil || err.Error() != wantErr {
+		t.Errorf("err = %v; want %q", err, wantErr)
+	}
+	if result != nil {
+		t.Errorf("result = %v; want nil", result)
+	}
 }

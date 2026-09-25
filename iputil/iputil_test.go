@@ -4,32 +4,49 @@ import (
 	"testing"
 
 	"github.com/mazdakn/firecore/iputil"
-	. "github.com/onsi/gomega"
 )
 
 func TestParseCIDROrIP(t *testing.T) {
-	RegisterTestingT(t)
-
 	t.Run("valid CIDRs", func(t *testing.T) {
 		ipnet, err := iputil.ParseCIDROrIP("10.0.0.0/8")
-		Expect(err).NotTo(HaveOccurred())
-		Expect(ipnet.String()).To(Equal("10.0.0.0/8"))
+		if err != nil {
+			t.Fatalf("ParseCIDROrIP(10.0.0.0/8) unexpected error: %v", err)
+		}
+		if got := ipnet.String(); got != "10.0.0.0/8" {
+			t.Errorf("ipnet.String() = %q; want 10.0.0.0/8", got)
+		}
 
 		ipnet6, err := iputil.ParseCIDROrIP("2001:db8::/32")
-		Expect(err).NotTo(HaveOccurred())
-		Expect(ipnet6.String()).To(Equal("2001:db8::/32"))
+		if err != nil {
+			t.Fatalf("ParseCIDROrIP(2001:db8::/32) unexpected error: %v", err)
+		}
+		if got := ipnet6.String(); got != "2001:db8::/32" {
+			t.Errorf("ipnet6.String() = %q; want 2001:db8::/32", got)
+		}
 	})
 
 	t.Run("valid single IPs", func(t *testing.T) {
 		ipnet4, err := iputil.ParseCIDROrIP("192.168.1.1")
-		Expect(err).NotTo(HaveOccurred())
-		Expect(ipnet4.String()).To(Equal("192.168.1.1/32"))
-		Expect(len(ipnet4.IP)).To(Equal(len(ipnet4.Mask)))
+		if err != nil {
+			t.Fatalf("ParseCIDROrIP(192.168.1.1) unexpected error: %v", err)
+		}
+		if got := ipnet4.String(); got != "192.168.1.1/32" {
+			t.Errorf("ipnet4.String() = %q; want 192.168.1.1/32", got)
+		}
+		if len(ipnet4.IP) != len(ipnet4.Mask) {
+			t.Errorf("len(ipnet4.IP) = %d != len(ipnet4.Mask) = %d", len(ipnet4.IP), len(ipnet4.Mask))
+		}
 
 		ipnet6, err := iputil.ParseCIDROrIP("2001:db8::1")
-		Expect(err).NotTo(HaveOccurred())
-		Expect(ipnet6.String()).To(Equal("2001:db8::1/128"))
-		Expect(len(ipnet6.IP)).To(Equal(len(ipnet6.Mask)))
+		if err != nil {
+			t.Fatalf("ParseCIDROrIP(2001:db8::1) unexpected error: %v", err)
+		}
+		if got := ipnet6.String(); got != "2001:db8::1/128" {
+			t.Errorf("ipnet6.String() = %q; want 2001:db8::1/128", got)
+		}
+		if len(ipnet6.IP) != len(ipnet6.Mask) {
+			t.Errorf("len(ipnet6.IP) = %d != len(ipnet6.Mask) = %d", len(ipnet6.IP), len(ipnet6.Mask))
+		}
 	})
 
 	t.Run("invalid inputs", func(t *testing.T) {
@@ -40,8 +57,9 @@ func TestParseCIDROrIP(t *testing.T) {
 			"not-an-ip/24",
 		}
 		for _, input := range invalidInputs {
-			_, err := iputil.ParseCIDROrIP(input)
-			Expect(err).To(HaveOccurred(), "expected error for input %q", input)
+			if _, err := iputil.ParseCIDROrIP(input); err == nil {
+				t.Errorf("expected error for input %q, got nil", input)
+			}
 		}
 	})
 }
