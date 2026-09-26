@@ -119,12 +119,16 @@ func TestTrackerConcurrentAccess(t *testing.T) {
 	)
 
 	var wg sync.WaitGroup
-	wg.Go(func() {
-		for range 100 {
-			_, _ = tracker.Lookup(pkt)
-			_ = tracker.CommitAccepted(pkt)
-		}
-	})
+	for range 10 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 100 {
+				_, _ = tracker.Lookup(pkt)
+				_ = tracker.CommitAccepted(pkt)
+			}
+		}()
+	}
 	wg.Wait()
 
 	state, err := tracker.Lookup(pkt)
