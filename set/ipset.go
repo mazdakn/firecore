@@ -3,19 +3,18 @@ package set
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"sort"
 	"strings"
 
 	"github.com/mazdakn/firecore/iputil"
 )
 
-// IPSet is a Set of net.IPNet CIDR blocks. Networks are stored in a slice
-// rather than keyed by CIDR string, since MatchIP runs on the packet-matching
-// hot path and a slice scan avoids Go map iteration's per-element bucket-walk
-// overhead; Add is a config-time operation, so the linear dedup scan it does
-// instead is not a concern.
+// IPSet is a Set of netip.Prefix CIDR blocks. Networks are stored as netip.Prefix
+// values in a slice, enabling high-performance, zero-allocation prefix matching on
+// the packet-matching hot path via netip.Prefix.Contains.
 type IPSet struct {
-	nets []*net.IPNet
+	prefixes []netip.Prefix
 }
 
 // NewIPSet returns an empty IPSet.
@@ -23,44 +22,88 @@ func NewIPSet() *IPSet {
 	return &IPSet{}
 }
 
-// indexOfNet returns the index of the network in s.nets whose CIDR string
-// matches ipnet's, or -1 if none does.
-func (s *IPSet) indexOfNet(ipnet *net.IPNet) int {
-	cidr := ipnet.String()
-	for i, existing := range s.nets {
-		if existing.String() == cidr {
+// indexOfPrefix returns the index of prefix in s.prefixes, or -1 if none matches.
+func (s *IPSet) indexOfPrefix(prefix netip.Prefix) int {
+	for i, existing := range s.prefixes {
+		if existing == prefix {
 			return i
 		}
 	}
 	return -1
 }
 
-// Add inserts a value into the set. v must be either a *net.IPNet or a string
-// representing an IP address (e.g. "10.0.0.1") or a CIDR block (e.g. "10.0.0.0/8").
-// It implements the Set interface.
-func (s *IPSet) Add(v any) error {
-	var ipnet *net.IPNet
+// toPrefix converts a supported value to a canonical netip.Prefix.
+// Supported types: netip.Prefix, netip.Addr, *net.IPNet, net.IP, and string (CIDR or single IP).
+func toPrefix(v any, op string) (netip.Prefix, error) {
 	switch val := v.(type) {
+	case netip.Prefix:
+		if !val.IsValid() {
+			return netip.Prefix{}, fmt.Errorf("IPSet.%s: invalid prefix", op)
+		}
+		return val.Masked(), nil
+	case netip.Addr:
+		if !val.IsValid() {
+			return netip.Prefix{}, fmt.Errorf("IPSet.%s: invalid address", op)
+		}
+		addr := val.Unmap()
+		return netip.PrefixFrom(addr, addr.BitLen()), nil
 	case *net.IPNet:
 		if err := validateIPNet(val); err != nil {
-			return err
+			return netip.Prefix{}, err
 		}
-		ipnet = val
+		addr, ok := netip.AddrFromSlice(val.IP)
+		if !ok {
+			return netip.Prefix{}, fmt.Errorf("IPSet.%s: invalid IP in *net.IPNet: %v", op, val.IP)
+		}
+		addr = addr.Unmap()
+		ones, _ := val.Mask.Size()
+		return netip.PrefixFrom(addr, ones), nil
 	case string:
+		if prefix, err := netip.ParsePrefix(val); err == nil {
+			return prefix.Masked(), nil
+		}
+		if addr, err := netip.ParseAddr(val); err == nil {
+			addr = addr.Unmap()
+			return netip.PrefixFrom(addr, addr.BitLen()), nil
+		}
+		// Fall back to iputil.ParseCIDROrIP to produce compatible error formatting
 		parsed, err := iputil.ParseCIDROrIP(val)
 		if err != nil {
-			return fmt.Errorf("invalid IP/CIDR %q: %w", val, err)
+			return netip.Prefix{}, fmt.Errorf("invalid IP/CIDR %q: %w", val, err)
 		}
-		ipnet = parsed
+		addr, ok := netip.AddrFromSlice(parsed.IP)
+		if !ok {
+			return netip.Prefix{}, fmt.Errorf("invalid IP/CIDR %q", val)
+		}
+		addr = addr.Unmap()
+		ones, _ := parsed.Mask.Size()
+		return netip.PrefixFrom(addr, ones), nil
+	case net.IP:
+		addr, ok := netip.AddrFromSlice(val)
+		if !ok {
+			return netip.Prefix{}, fmt.Errorf("IPSet.%s: invalid net.IP: %v", op, val)
+		}
+		addr = addr.Unmap()
+		return netip.PrefixFrom(addr, addr.BitLen()), nil
 	default:
-		return fmt.Errorf("IPSet.Add: unsupported type %T", v)
+		return netip.Prefix{}, fmt.Errorf("IPSet.%s: unsupported type %T", op, v)
+	}
+}
+
+// Add inserts a value into the set. v must be a netip.Prefix, netip.Addr, *net.IPNet,
+// net.IP, or a string representing an IP address (e.g. "10.0.0.1") or a CIDR block
+// (e.g. "10.0.0.0/8"). It implements the Set interface.
+func (s *IPSet) Add(v any) error {
+	prefix, err := toPrefix(v, "Add")
+	if err != nil {
+		return err
 	}
 
-	if i := s.indexOfNet(ipnet); i >= 0 {
-		s.nets[i] = ipnet
+	if i := s.indexOfPrefix(prefix); i >= 0 {
+		s.prefixes[i] = prefix
 		return nil
 	}
-	s.nets = append(s.nets, ipnet)
+	s.prefixes = append(s.prefixes, prefix)
 	return nil
 }
 
@@ -87,65 +130,82 @@ func validateIPNet(ipnet *net.IPNet) error {
 }
 
 // Delete removes a value from the set. v accepts the same types as Add: a
-// *net.IPNet or a string representing an IP address or CIDR block. It implements
-// the Set interface.
+// netip.Prefix, netip.Addr, *net.IPNet, net.IP, or a string representing an
+// IP address or CIDR block. It implements the Set interface.
 func (s *IPSet) Delete(v any) error {
-	var ipnet *net.IPNet
-	switch val := v.(type) {
-	case *net.IPNet:
-		if err := validateIPNet(val); err != nil {
-			return err
-		}
-		ipnet = val
-	case string:
-		parsed, err := iputil.ParseCIDROrIP(val)
-		if err != nil {
-			return fmt.Errorf("invalid IP/CIDR %q: %w", val, err)
-		}
-		ipnet = parsed
-	default:
-		return fmt.Errorf("IPSet.Delete: unsupported type %T", v)
+	prefix, err := toPrefix(v, "Delete")
+	if err != nil {
+		return err
 	}
 
-	if i := s.indexOfNet(ipnet); i >= 0 {
-		s.nets = append(s.nets[:i], s.nets[i+1:]...)
+	if i := s.indexOfPrefix(prefix); i >= 0 {
+		s.prefixes = append(s.prefixes[:i], s.prefixes[i+1:]...)
 	}
 	return nil
 }
 
 // Match reports whether v is contained in any network in the set.
-// v must be a net.IP. It implements the Set interface.
+// v must be a net.IP, netip.Addr, or string IP address. It implements the Set interface.
 func (s *IPSet) Match(v any) bool {
-	ip, ok := v.(net.IP)
-	if !ok {
+	switch val := v.(type) {
+	case net.IP:
+		return s.MatchIP(val)
+	case netip.Addr:
+		return s.MatchAddr(val)
+	case string:
+		addr, err := netip.ParseAddr(val)
+		if err != nil {
+			return false
+		}
+		return s.MatchAddr(addr)
+	default:
 		return false
 	}
-	return s.MatchIP(ip)
 }
 
-// MatchIP reports whether ip is contained in any network in the set. Unlike
-// Match, it takes a concrete net.IP rather than any, letting callers on the
-// packet-matching hot path avoid interface-boxing it.
-func (s *IPSet) MatchIP(ip net.IP) bool {
-	for _, ipnet := range s.nets {
-		if ipnet.Contains(ip) {
+// MatchAddr reports whether addr is contained in any prefix in the set.
+func (s *IPSet) MatchAddr(addr netip.Addr) bool {
+	if !addr.IsValid() {
+		return false
+	}
+	addr = addr.Unmap()
+	for _, p := range s.prefixes {
+		if p.Contains(addr) {
 			return true
 		}
 	}
 	return false
 }
 
+// MatchIP reports whether ip is contained in any prefix in the set. Unlike
+// Match, it takes a concrete net.IP rather than any, letting callers on the
+// packet-matching hot path avoid interface-boxing it.
+func (s *IPSet) MatchIP(ip net.IP) bool {
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return false
+	}
+	return s.MatchAddr(addr)
+}
+
 func (s *IPSet) Type() Type {
 	return TypeIP
+}
+
+// Prefixes returns a copy of the netip.Prefix slices in the set.
+func (s *IPSet) Prefixes() []netip.Prefix {
+	copied := make([]netip.Prefix, len(s.prefixes))
+	copy(copied, s.prefixes)
+	return copied
 }
 
 // String returns a human-readable representation of the IPSet.
 // A single-network set renders as its CIDR (e.g. "10.0.0.0/8").
 // A multi-network set renders as a sorted brace-enclosed list (e.g. "{10.0.0.0/8,192.168.0.0/16}").
 func (s *IPSet) String() string {
-	cidrs := make([]string, 0, len(s.nets))
-	for _, ipnet := range s.nets {
-		cidrs = append(cidrs, ipnet.String())
+	cidrs := make([]string, 0, len(s.prefixes))
+	for _, p := range s.prefixes {
+		cidrs = append(cidrs, p.String())
 	}
 	sort.Strings(cidrs)
 	if len(cidrs) == 1 {

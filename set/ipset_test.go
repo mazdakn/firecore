@@ -2,6 +2,7 @@ package set
 
 import (
 	"net"
+	"net/netip"
 	"testing"
 )
 
@@ -244,3 +245,95 @@ func TestIPSetDeleteSingleIP(t *testing.T) {
 		t.Errorf("expected no match for 10.0.0.1 after delete")
 	}
 }
+
+func TestIPSetNetipPrefixAndAddr(t *testing.T) {
+	s := NewIPSet()
+
+	prefix := netip.MustParsePrefix("192.168.1.0/24")
+	if err := s.Add(prefix); err != nil {
+		t.Fatalf("s.Add(prefix) unexpected error: %v", err)
+	}
+	// Adding again should deduplicate without error
+	if err := s.Add(prefix); err != nil {
+		t.Fatalf("s.Add duplicate prefix unexpected error: %v", err)
+	}
+
+	addr := netip.MustParseAddr("10.10.10.1")
+	if err := s.Add(addr); err != nil {
+		t.Fatalf("s.Add(addr) unexpected error: %v", err)
+	}
+
+	ipVal := net.ParseIP("172.16.0.5")
+	if err := s.Add(ipVal); err != nil {
+		t.Fatalf("s.Add(net.IP) unexpected error: %v", err)
+	}
+
+	prefixes := s.Prefixes()
+	if len(prefixes) != 3 {
+		t.Fatalf("len(s.Prefixes()) = %d; want 3", len(prefixes))
+	}
+
+	// Match via netip.Addr
+	if !s.Match(netip.MustParseAddr("192.168.1.50")) {
+		t.Errorf("expected match for netip.Addr 192.168.1.50")
+	}
+	if !s.MatchAddr(netip.MustParseAddr("10.10.10.1")) {
+		t.Errorf("expected match for MatchAddr 10.10.10.1")
+	}
+	if s.MatchAddr(netip.Addr{}) {
+		t.Errorf("expected false for invalid netip.Addr")
+	}
+
+	// Match via string
+	if !s.Match("172.16.0.5") {
+		t.Errorf("expected match for string 172.16.0.5")
+	}
+	if s.Match("invalid-ip") {
+		t.Errorf("expected false for invalid string IP")
+	}
+	if s.Match(12345) {
+		t.Errorf("expected false for unsupported type in Match")
+	}
+
+	// MatchIP with nil
+	if s.MatchIP(nil) {
+		t.Errorf("expected false for nil net.IP")
+	}
+
+	// Test Deletes
+	if err := s.Delete(prefix); err != nil {
+		t.Fatalf("s.Delete(prefix) unexpected error: %v", err)
+	}
+	if s.Match(netip.MustParseAddr("192.168.1.50")) {
+		t.Errorf("expected no match for deleted prefix")
+	}
+
+	if err := s.Delete(addr); err != nil {
+		t.Fatalf("s.Delete(addr) unexpected error: %v", err)
+	}
+	if s.MatchAddr(addr) {
+		t.Errorf("expected no match for deleted addr")
+	}
+
+	if err := s.Delete(ipVal); err != nil {
+		t.Fatalf("s.Delete(net.IP) unexpected error: %v", err)
+	}
+	if s.Match(ipVal) {
+		t.Errorf("expected no match for deleted net.IP")
+	}
+}
+
+func TestIPSetAddInvalidNetipTypes(t *testing.T) {
+	s := NewIPSet()
+
+	if err := s.Add(netip.Prefix{}); err == nil {
+		t.Error("expected error adding invalid netip.Prefix")
+	}
+	if err := s.Add(netip.Addr{}); err == nil {
+		t.Error("expected error adding invalid netip.Addr")
+	}
+	if err := s.Add(net.IP{1, 2, 3}); err == nil {
+		t.Error("expected error adding net.IP with invalid length")
+	}
+}
+
