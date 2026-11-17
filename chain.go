@@ -2,6 +2,7 @@ package firecore
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/mazdakn/firecore/conntrack"
@@ -46,9 +47,7 @@ func (c *Chain) AddRule(r *Rule) error {
 	i := sort.Search(len(c.Rules), func(i int) bool {
 		return c.Rules[i].Order > r.Order
 	})
-	c.Rules = append(c.Rules, nil)
-	copy(c.Rules[i+1:], c.Rules[i:])
-	c.Rules[i] = r
+	c.Rules = slices.Insert(c.Rules, i, r)
 	return nil
 }
 

@@ -89,9 +89,5 @@ func (s *IfaceSet) Type() Type {
 // A single-interface set renders as its name (e.g. "eth0").
 // A multi-interface set renders as a sorted brace-enclosed list (e.g. "{eth0,eth1}").
 func (s *IfaceSet) String() string {
-	ifaces := make([]string, 0, len(s.items))
-	for iface := range s.items {
-		ifaces = append(ifaces, iface)
-	}
-	return formatSortedStrings(ifaces)
+	return formatSortedStrings(s.keys())
 }

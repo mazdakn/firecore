@@ -62,6 +62,13 @@ func (ps *ProtoSet) Match(v any) bool {
 	if !ok {
 		return false
 	}
+	return ps.MatchProto(p)
+}
+
+// MatchProto reports whether p is present in the set. Unlike Match, it takes
+// a concrete proto.Proto rather than any, letting callers on the
+// packet-matching hot path avoid interface-boxing it.
+func (ps *ProtoSet) MatchProto(p proto.Proto) bool {
 	return ps.Exists(p)
 }
 
@@ -73,10 +80,7 @@ func (ps *ProtoSet) Type() Type {
 // A single-protocol set renders as its name or number (e.g. "tcp").
 // A multi-protocol set renders as a sorted brace-enclosed list (e.g. "{tcp,udp}").
 func (ps *ProtoSet) String() string {
-	protos := make([]proto.Proto, 0, len(ps.items))
-	for p := range ps.items {
-		protos = append(protos, p)
-	}
+	protos := ps.keys()
 	slices.Sort(protos)
 	return formatStringers(protos)
 }

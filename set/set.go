@@ -2,6 +2,7 @@ package set
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -30,6 +31,11 @@ func (s *set[T]) Delete(item T) {
 func (s *set[T]) Exists(item T) bool {
 	_, ok := s.items[item]
 	return ok
+}
+
+// keys returns a slice of all items in the set.
+func (s *set[T]) keys() []T {
+	return slices.Collect(maps.Keys(s.items))
 }
 
 // formatSetStrings formats an already-ordered slice of entry strings as a

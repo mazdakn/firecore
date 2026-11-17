@@ -64,7 +64,7 @@ type ProtoMatcher struct {
 }
 
 func (m *ProtoMatcher) Match(pkt *packet.Packet, _ conntrack.State) bool {
-	return m.Protos.Match(pkt.Proto)
+	return m.Protos.MatchProto(pkt.Proto)
 }
 
 // SrcSetMatcher matches packets whose source-derived value (address, port,

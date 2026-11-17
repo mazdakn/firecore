@@ -1,8 +1,10 @@
 package firecore
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/mazdakn/firecore/packet"
@@ -97,11 +99,7 @@ const (
 // during Match/Evaluate (a cycle then fails safe via the jump depth limit in
 // Chain.match rather than recursing forever).
 func (t *Table) Validate() error {
-	names := make([]string, 0, len(t.Chains))
-	for name := range t.Chains {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(t.Chains))
 
 	color := make(map[string]chainColor, len(names))
 
@@ -178,7 +176,7 @@ func (t *Table) MatchDefaultRule(pkt *packet.Packet, result *Result) bool {
 }
 
 func SortTables(tables []*Table) {
-	sort.SliceStable(tables, func(i, j int) bool {
-		return tables[i].Order < tables[j].Order
+	slices.SortStableFunc(tables, func(a, b *Table) int {
+		return cmp.Compare(a.Order, b.Order)
 	})
 }
