@@ -6,7 +6,6 @@ import (
 
 	"github.com/mazdakn/firecore/conntrack"
 	"github.com/mazdakn/firecore/counter"
-	"github.com/mazdakn/firecore/iputil"
 	"github.com/mazdakn/firecore/matcher"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/payload"
@@ -113,39 +112,40 @@ func findMatcher[M matcher.Matcher](r *Rule, negate bool) (M, bool) {
 	return zero, false
 }
 
-// findSrcSet returns the set.Set of an existing SrcSetMatcher on r matching
-// negate and kind. SrcSetMatcher is shared by port/net/iface conditions, so
-// unlike findMatcher this must also filter on the wrapped set's kind —
-// otherwise, say, WithSrcPort could accumulate into a set built by WithSrcNet.
-func findSrcSet(r *Rule, negate bool, kind set.Type) (set.Set, bool) {
+// findSet returns the set of an existing matcher M on r matching negate and
+// predicate matchSet.
+func findSet[M matcher.Matcher](r *Rule, negate bool, getSet func(M) set.Set, matchSet func(set.Set) bool) (set.Set, bool) {
 	for _, m := range r.Matchers {
 		candidate, ok := unwrapForPolarity(m, negate)
 		if !ok {
 			continue
 		}
-		sm, ok := candidate.(*matcher.SrcSetMatcher)
-		if !ok || sm.Set.Type() != kind {
+		sm, ok := candidate.(M)
+		if !ok {
 			continue
 		}
-		return sm.Set, true
+		if s := getSet(sm); matchSet(s) {
+			return s, true
+		}
 	}
 	return nil, false
 }
 
+// findSrcSet returns the set.Set of an existing SrcSetMatcher on r matching
+// negate and kind.
+func findSrcSet(r *Rule, negate bool, kind set.Type) (set.Set, bool) {
+	return findSet(r, negate,
+		func(m *matcher.SrcSetMatcher) set.Set { return m.Set },
+		func(s set.Set) bool { return s.Type() == kind },
+	)
+}
+
 // findDstSet is findSrcSet's DstSetMatcher counterpart.
 func findDstSet(r *Rule, negate bool, kind set.Type) (set.Set, bool) {
-	for _, m := range r.Matchers {
-		candidate, ok := unwrapForPolarity(m, negate)
-		if !ok {
-			continue
-		}
-		dm, ok := candidate.(*matcher.DstSetMatcher)
-		if !ok || dm.Set.Type() != kind {
-			continue
-		}
-		return dm.Set, true
-	}
-	return nil, false
+	return findSet(r, negate,
+		func(m *matcher.DstSetMatcher) set.Set { return m.Set },
+		func(s set.Set) bool { return s.Type() == kind },
+	)
 }
 
 // addMatcher appends m to r.Matchers, wrapping it in matcher.Negate first if
@@ -155,6 +155,52 @@ func addMatcher(r *Rule, m matcher.Matcher, negate bool) {
 		m = matcher.Negate(m)
 	}
 	r.Matchers = append(r.Matchers, m)
+}
+
+// withSetEntry adds val to an existing set of type S on a matcher of type M
+// with matching polarity, or creates a new S and attaches a new M if none
+// exists yet.
+func withSetEntry[S set.Set, M matcher.Matcher](
+	newSet func() S,
+	getSet func(M) set.Set,
+	wrap func(set.Set) M,
+	val any,
+	negate bool,
+) RuleOption {
+	return func(r *Rule) error {
+		if existing, ok := findSet(r, negate, getSet, func(s set.Set) bool {
+			_, ok := s.(S)
+			return ok
+		}); ok {
+			return existing.Add(val)
+		}
+		s := newSet()
+		if err := s.Add(val); err != nil {
+			return err
+		}
+		addMatcher(r, wrap(s), negate)
+		return nil
+	}
+}
+
+func withSrcEntry[S set.Set](newSet func() S, val any, negate bool) RuleOption {
+	return withSetEntry(
+		newSet,
+		func(m *matcher.SrcSetMatcher) set.Set { return m.Set },
+		func(s set.Set) *matcher.SrcSetMatcher { return &matcher.SrcSetMatcher{Set: s} },
+		val,
+		negate,
+	)
+}
+
+func withDstEntry[S set.Set](newSet func() S, val any, negate bool) RuleOption {
+	return withSetEntry(
+		newSet,
+		func(m *matcher.DstSetMatcher) set.Set { return m.Set },
+		func(s set.Set) *matcher.DstSetMatcher { return &matcher.DstSetMatcher{Set: s} },
+		val,
+		negate,
+	)
 }
 
 func WithJump(chainName string) RuleOption {
@@ -260,32 +306,7 @@ func WithNotProto(p proto.Proto) RuleOption {
 	return withProto(p, true)
 }
 
-// Source port options.
-
-func withSrcPort(port uint16, negate bool) RuleOption {
-	return func(r *Rule) error {
-		s, ok := findSrcSet(r, negate, set.TypePort)
-		var ports *set.PortSet
-		if ok {
-			ports = s.(*set.PortSet)
-		} else {
-			ports = set.NewPortSet()
-			addMatcher(r, &matcher.SrcSetMatcher{Set: ports}, negate)
-		}
-		if err := ports.Add(port); err != nil {
-			return fmt.Errorf("invalid port %d", port)
-		}
-		return nil
-	}
-}
-
-func WithSrcPort(port uint16) RuleOption {
-	return withSrcPort(port, false)
-}
-
-func WithNotSrcPort(port uint16) RuleOption {
-	return withSrcPort(port, true)
-}
+// Named set options.
 
 // validateSet reports an error if s is nil.
 func validateSet(s set.Set) error {
@@ -318,33 +339,6 @@ func WithNotSrcSet(s set.Set) RuleOption {
 	}
 }
 
-// Destination port options.
-
-func withDstPort(port uint16, negate bool) RuleOption {
-	return func(r *Rule) error {
-		s, ok := findDstSet(r, negate, set.TypePort)
-		var ports *set.PortSet
-		if ok {
-			ports = s.(*set.PortSet)
-		} else {
-			ports = set.NewPortSet()
-			addMatcher(r, &matcher.DstSetMatcher{Set: ports}, negate)
-		}
-		if err := ports.Add(port); err != nil {
-			return fmt.Errorf("invalid port %d", port)
-		}
-		return nil
-	}
-}
-
-func WithDstPort(port uint16) RuleOption {
-	return withDstPort(port, false)
-}
-
-func WithNotDstPort(port uint16) RuleOption {
-	return withDstPort(port, true)
-}
-
 // WithDstSet matches packets whose destination-derived value (address, port,
 // or interface, depending on s's Type) is in s.
 func WithDstSet(s set.Set) RuleOption {
@@ -368,172 +362,76 @@ func WithNotDstSet(s set.Set) RuleOption {
 	}
 }
 
-// Source address options.
+// Source and destination port options.
 
-func withSrcNet(cidr string, negate bool) RuleOption {
-	return func(r *Rule) error {
-		ipnet, err := iputil.ParseCIDROrIP(cidr)
-		if err != nil {
-			return err
-		}
-		s, ok := findSrcSet(r, negate, set.TypeIP)
-		var nets *set.IPSet
-		if ok {
-			nets = s.(*set.IPSet)
-		} else {
-			nets = set.NewIPSet()
-			addMatcher(r, &matcher.SrcSetMatcher{Set: nets}, negate)
-		}
-		if err := nets.Add(ipnet); err != nil {
-			return fmt.Errorf("error adding %s to set: %w", cidr, err)
-		}
-		return nil
-	}
+func WithSrcPort(port uint16) RuleOption {
+	return withSrcEntry(set.NewPortSet, port, false)
 }
 
+func WithNotSrcPort(port uint16) RuleOption {
+	return withSrcEntry(set.NewPortSet, port, true)
+}
+
+func WithDstPort(port uint16) RuleOption {
+	return withDstEntry(set.NewPortSet, port, false)
+}
+
+func WithNotDstPort(port uint16) RuleOption {
+	return withDstEntry(set.NewPortSet, port, true)
+}
+
+// Source and destination address options.
+
 func WithSrcNet(cidr string) RuleOption {
-	return withSrcNet(cidr, false)
+	return withSrcEntry(set.NewIPSet, cidr, false)
 }
 
 func WithNotSrcNet(cidr string) RuleOption {
-	return withSrcNet(cidr, true)
-}
-
-// Destination address options.
-
-func withDstNet(cidr string, negate bool) RuleOption {
-	return func(r *Rule) error {
-		ipnet, err := iputil.ParseCIDROrIP(cidr)
-		if err != nil {
-			return err
-		}
-		s, ok := findDstSet(r, negate, set.TypeIP)
-		var nets *set.IPSet
-		if ok {
-			nets = s.(*set.IPSet)
-		} else {
-			nets = set.NewIPSet()
-			addMatcher(r, &matcher.DstSetMatcher{Set: nets}, negate)
-		}
-		if err := nets.Add(ipnet); err != nil {
-			return fmt.Errorf("error adding %s to set: %w", cidr, err)
-		}
-		return nil
-	}
+	return withSrcEntry(set.NewIPSet, cidr, true)
 }
 
 func WithDstNet(cidr string) RuleOption {
-	return withDstNet(cidr, false)
+	return withDstEntry(set.NewIPSet, cidr, false)
 }
 
 func WithNotDstNet(cidr string) RuleOption {
-	return withDstNet(cidr, true)
+	return withDstEntry(set.NewIPSet, cidr, true)
 }
 
 // Source and destination address:port options.
 
-func withSrcAddrPort(addrPort string, negate bool) RuleOption {
-	return func(r *Rule) error {
-		s, ok := findSrcSet(r, negate, set.TypeIPPort)
-		var ipPorts *set.IPPortSet
-		if ok {
-			ipPorts = s.(*set.IPPortSet)
-		} else {
-			ipPorts = set.NewIPPortSet()
-			addMatcher(r, &matcher.SrcSetMatcher{Set: ipPorts}, negate)
-		}
-		if err := ipPorts.Add(addrPort); err != nil {
-			return fmt.Errorf("invalid source addr:port %s: %w", addrPort, err)
-		}
-		return nil
-	}
-}
-
 func WithSrcAddrPort(addrPort string) RuleOption {
-	return withSrcAddrPort(addrPort, false)
+	return withSrcEntry(set.NewIPPortSet, addrPort, false)
 }
 
 func WithNotSrcAddrPort(addrPort string) RuleOption {
-	return withSrcAddrPort(addrPort, true)
-}
-
-func withDstAddrPort(addrPort string, negate bool) RuleOption {
-	return func(r *Rule) error {
-		s, ok := findDstSet(r, negate, set.TypeIPPort)
-		var ipPorts *set.IPPortSet
-		if ok {
-			ipPorts = s.(*set.IPPortSet)
-		} else {
-			ipPorts = set.NewIPPortSet()
-			addMatcher(r, &matcher.DstSetMatcher{Set: ipPorts}, negate)
-		}
-		if err := ipPorts.Add(addrPort); err != nil {
-			return fmt.Errorf("invalid destination addr:port %s: %w", addrPort, err)
-		}
-		return nil
-	}
+	return withSrcEntry(set.NewIPPortSet, addrPort, true)
 }
 
 func WithDstAddrPort(addrPort string) RuleOption {
-	return withDstAddrPort(addrPort, false)
+	return withDstEntry(set.NewIPPortSet, addrPort, false)
 }
 
 func WithNotDstAddrPort(addrPort string) RuleOption {
-	return withDstAddrPort(addrPort, true)
+	return withDstEntry(set.NewIPPortSet, addrPort, true)
 }
 
-// Source interface options.
-
-func withSrcIface(iface string, negate bool) RuleOption {
-	return func(r *Rule) error {
-		s, ok := findSrcSet(r, negate, set.TypeIface)
-		var ifaces *set.IfaceSet
-		if ok {
-			ifaces = s.(*set.IfaceSet)
-		} else {
-			ifaces = set.NewIfaceSet()
-			addMatcher(r, &matcher.SrcSetMatcher{Set: ifaces}, negate)
-		}
-		if err := ifaces.Add(iface); err != nil {
-			return fmt.Errorf("invalid interface %s", iface)
-		}
-		return nil
-	}
-}
+// Source and destination interface options.
 
 func WithSrcIface(iface string) RuleOption {
-	return withSrcIface(iface, false)
+	return withSrcEntry(set.NewIfaceSet, iface, false)
 }
 
 func WithNotSrcIface(iface string) RuleOption {
-	return withSrcIface(iface, true)
-}
-
-// Destination interface options.
-
-func withDstIface(iface string, negate bool) RuleOption {
-	return func(r *Rule) error {
-		s, ok := findDstSet(r, negate, set.TypeIface)
-		var ifaces *set.IfaceSet
-		if ok {
-			ifaces = s.(*set.IfaceSet)
-		} else {
-			ifaces = set.NewIfaceSet()
-			addMatcher(r, &matcher.DstSetMatcher{Set: ifaces}, negate)
-		}
-		if err := ifaces.Add(iface); err != nil {
-			return fmt.Errorf("invalid interface %s", iface)
-		}
-		return nil
-	}
+	return withSrcEntry(set.NewIfaceSet, iface, true)
 }
 
 func WithDstIface(iface string) RuleOption {
-	return withDstIface(iface, false)
+	return withDstEntry(set.NewIfaceSet, iface, false)
 }
 
 func WithNotDstIface(iface string) RuleOption {
-	return withDstIface(iface, true)
+	return withDstEntry(set.NewIfaceSet, iface, true)
 }
 
 func NewRule(opts ...RuleOption) (*Rule, error) {
