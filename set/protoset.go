@@ -17,43 +17,42 @@ func NewProtoSet() *ProtoSet {
 	return &ProtoSet{*New[proto.Proto]()}
 }
 
-// Add inserts a value into the set. v must be either a proto.Proto value or a
-// string protocol name/number. It implements the Set interface.
-func (ps *ProtoSet) Add(v any) error {
+func toProto(op string, v any) (proto.Proto, error) {
 	switch val := v.(type) {
 	case proto.Proto:
-		ps.set.Add(val)
-		return nil
+		return val, nil
 	case string:
 		p, err := proto.Parse(val)
 		if err != nil {
-			return fmt.Errorf("invalid protocol %q: %w", val, err)
+			return 0, fmt.Errorf("invalid protocol %q: %w", val, err)
 		}
-		ps.set.Add(*p)
-		return nil
+		return *p, nil
 	default:
-		return fmt.Errorf("ProtoSet.Add: unsupported type %T", v)
+		return 0, fmt.Errorf("%s: unsupported type %T", op, v)
 	}
+}
+
+// Add inserts a value into the set. v must be either a proto.Proto value or a
+// string protocol name/number. It implements the Set interface.
+func (ps *ProtoSet) Add(v any) error {
+	p, err := toProto("ProtoSet.Add", v)
+	if err != nil {
+		return err
+	}
+	ps.set.Add(p)
+	return nil
 }
 
 // Delete removes a value from the set. v accepts the same types as Add: a
 // proto.Proto value or a string protocol name/number. It implements the Set
 // interface.
 func (ps *ProtoSet) Delete(v any) error {
-	switch val := v.(type) {
-	case proto.Proto:
-		ps.set.Delete(val)
-		return nil
-	case string:
-		p, err := proto.Parse(val)
-		if err != nil {
-			return fmt.Errorf("invalid protocol %q: %w", val, err)
-		}
-		ps.set.Delete(*p)
-		return nil
-	default:
-		return fmt.Errorf("ProtoSet.Delete: unsupported type %T", v)
+	p, err := toProto("ProtoSet.Delete", v)
+	if err != nil {
+		return err
 	}
+	ps.set.Delete(p)
+	return nil
 }
 
 // Match reports whether v is present in the set. v must be a proto.Proto

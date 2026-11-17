@@ -3,6 +3,7 @@ package set
 import (
 	"fmt"
 	"net/netip"
+	"slices"
 
 	"github.com/mazdakn/firecore/iputil"
 )
@@ -21,44 +22,38 @@ func NewIPSet() *IPSet {
 	return &IPSet{}
 }
 
-// indexOfNet returns the index of the network in s.nets that equals prefix,
-// or -1 if none does.
-func (s *IPSet) indexOfNet(prefix netip.Prefix) int {
-	for i, existing := range s.nets {
-		if existing == prefix {
-			return i
+func toPrefix(op string, v any) (netip.Prefix, error) {
+	switch val := v.(type) {
+	case netip.Prefix:
+		if !val.IsValid() {
+			return netip.Prefix{}, fmt.Errorf("%s: netip.Prefix must be valid", op)
 		}
+		return val.Masked(), nil
+	case netip.Addr:
+		if !val.IsValid() {
+			return netip.Prefix{}, fmt.Errorf("%s: netip.Addr must be valid", op)
+		}
+		return netip.PrefixFrom(val, val.BitLen()), nil
+	case string:
+		parsed, err := iputil.ParseCIDROrIP(val)
+		if err != nil {
+			return netip.Prefix{}, fmt.Errorf("invalid IP/CIDR %q: %w", val, err)
+		}
+		return parsed, nil
+	default:
+		return netip.Prefix{}, fmt.Errorf("%s: unsupported type %T", op, v)
 	}
-	return -1
 }
 
 // Add inserts a value into the set. v must be either a netip.Prefix, a
 // netip.Addr, or a string representing an IP address (e.g. "10.0.0.1") or a
 // CIDR block (e.g. "10.0.0.0/8"). It implements the Set interface.
 func (s *IPSet) Add(v any) error {
-	var prefix netip.Prefix
-	switch val := v.(type) {
-	case netip.Prefix:
-		if !val.IsValid() {
-			return fmt.Errorf("IPSet.Add: netip.Prefix must be valid")
-		}
-		prefix = val.Masked()
-	case netip.Addr:
-		if !val.IsValid() {
-			return fmt.Errorf("IPSet.Add: netip.Addr must be valid")
-		}
-		prefix = netip.PrefixFrom(val, val.BitLen())
-	case string:
-		parsed, err := iputil.ParseCIDROrIP(val)
-		if err != nil {
-			return fmt.Errorf("invalid IP/CIDR %q: %w", val, err)
-		}
-		prefix = parsed
-	default:
-		return fmt.Errorf("IPSet.Add: unsupported type %T", v)
+	prefix, err := toPrefix("IPSet.Add", v)
+	if err != nil {
+		return err
 	}
-
-	if i := s.indexOfNet(prefix); i >= 0 {
+	if i := slices.Index(s.nets, prefix); i >= 0 {
 		s.nets[i] = prefix
 		return nil
 	}
@@ -70,30 +65,12 @@ func (s *IPSet) Add(v any) error {
 // netip.Prefix, a netip.Addr, or a string representing an IP address or CIDR
 // block. It implements the Set interface.
 func (s *IPSet) Delete(v any) error {
-	var prefix netip.Prefix
-	switch val := v.(type) {
-	case netip.Prefix:
-		if !val.IsValid() {
-			return fmt.Errorf("IPSet.Delete: netip.Prefix must be valid")
-		}
-		prefix = val.Masked()
-	case netip.Addr:
-		if !val.IsValid() {
-			return fmt.Errorf("IPSet.Delete: netip.Addr must be valid")
-		}
-		prefix = netip.PrefixFrom(val, val.BitLen())
-	case string:
-		parsed, err := iputil.ParseCIDROrIP(val)
-		if err != nil {
-			return fmt.Errorf("invalid IP/CIDR %q: %w", val, err)
-		}
-		prefix = parsed
-	default:
-		return fmt.Errorf("IPSet.Delete: unsupported type %T", v)
+	prefix, err := toPrefix("IPSet.Delete", v)
+	if err != nil {
+		return err
 	}
-
-	if i := s.indexOfNet(prefix); i >= 0 {
-		s.nets = append(s.nets[:i], s.nets[i+1:]...)
+	if i := slices.Index(s.nets, prefix); i >= 0 {
+		s.nets = slices.Delete(s.nets, i, i+1)
 	}
 	return nil
 }

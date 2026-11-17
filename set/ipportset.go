@@ -3,6 +3,7 @@ package set
 import (
 	"fmt"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -60,12 +61,9 @@ func (s *IPPortSet) Add(v any) error {
 		s.set.Add(member.addrPort())
 		return nil
 	}
-	for _, existing := range s.members {
-		if existing == member {
-			return nil
-		}
+	if !slices.Contains(s.members, member) {
+		s.members = append(s.members, member)
 	}
-	s.members = append(s.members, member)
 	return nil
 }
 
@@ -80,11 +78,8 @@ func (s *IPPortSet) Delete(v any) error {
 		s.set.Delete(member.addrPort())
 		return nil
 	}
-	for i, existing := range s.members {
-		if existing == member {
-			s.members = append(s.members[:i], s.members[i+1:]...)
-			break
-		}
+	if i := slices.Index(s.members, member); i >= 0 {
+		s.members = slices.Delete(s.members, i, i+1)
 	}
 	return nil
 }
