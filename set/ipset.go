@@ -8,18 +8,19 @@ import (
 	"github.com/mazdakn/firecore/iputil"
 )
 
-// IPSet is a Set of netip.Prefix CIDR blocks. Networks are stored in a slice
-// rather than keyed by CIDR string, since MatchIP runs on the packet-matching
-// hot path and a slice scan avoids Go map iteration's per-element bucket-walk
-// overhead; Add is a config-time operation, so the linear dedup scan it does
-// instead is not a concern.
+// IPSet is a Set of IP addresses and CIDR blocks. Exact single-IP entries
+// (/32 for IPv4, /128 for IPv6) are stored in the embedded set[netip.Addr]
+// for O(1) lookup, while CIDR subnets are stored in nets.
 type IPSet struct {
+	set[netip.Addr]
 	nets []netip.Prefix
 }
 
 // NewIPSet returns an empty IPSet.
 func NewIPSet() *IPSet {
-	return &IPSet{}
+	return &IPSet{
+		set: *New[netip.Addr](),
+	}
 }
 
 func toPrefix(op string, v any) (netip.Prefix, error) {
@@ -53,11 +54,13 @@ func (s *IPSet) Add(v any) error {
 	if err != nil {
 		return err
 	}
-	if i := slices.Index(s.nets, prefix); i >= 0 {
-		s.nets[i] = prefix
+	if prefix.IsSingleIP() {
+		s.set.Add(prefix.Addr())
 		return nil
 	}
-	s.nets = append(s.nets, prefix)
+	if !slices.Contains(s.nets, prefix) {
+		s.nets = append(s.nets, prefix)
+	}
 	return nil
 }
 
@@ -68,6 +71,10 @@ func (s *IPSet) Delete(v any) error {
 	prefix, err := toPrefix("IPSet.Delete", v)
 	if err != nil {
 		return err
+	}
+	if prefix.IsSingleIP() {
+		s.set.Delete(prefix.Addr())
+		return nil
 	}
 	if i := slices.Index(s.nets, prefix); i >= 0 {
 		s.nets = slices.Delete(s.nets, i, i+1)
@@ -89,6 +96,9 @@ func (s *IPSet) Match(v any) bool {
 // Match, it takes a concrete netip.Addr rather than any, letting callers on
 // the packet-matching hot path avoid interface-boxing it.
 func (s *IPSet) MatchIP(ip netip.Addr) bool {
+	if s.Exists(ip) {
+		return true
+	}
 	for _, prefix := range s.nets {
 		if prefix.Contains(ip) {
 			return true
@@ -105,7 +115,10 @@ func (s *IPSet) Type() Type {
 // A single-network set renders as its CIDR (e.g. "10.0.0.0/8").
 // A multi-network set renders as a sorted brace-enclosed list (e.g. "{10.0.0.0/8,192.168.0.0/16}").
 func (s *IPSet) String() string {
-	cidrs := make([]string, 0, len(s.nets))
+	cidrs := make([]string, 0, len(s.items)+len(s.nets))
+	for ip := range s.items {
+		cidrs = append(cidrs, netip.PrefixFrom(ip, ip.BitLen()).String())
+	}
 	for _, ipnet := range s.nets {
 		cidrs = append(cidrs, ipnet.String())
 	}
