@@ -2,7 +2,6 @@ package set
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 	"unicode"
 )
@@ -94,18 +93,5 @@ func (s *IfaceSet) String() string {
 	for iface := range s.items {
 		ifaces = append(ifaces, iface)
 	}
-	sort.Strings(ifaces)
-	if len(ifaces) == 1 {
-		return ifaces[0]
-	}
-	var sb strings.Builder
-	sb.WriteByte('{')
-	for i, iface := range ifaces {
-		if i > 0 {
-			sb.WriteByte(',')
-		}
-		sb.WriteString(iface)
-	}
-	sb.WriteByte('}')
-	return sb.String()
+	return formatSortedStrings(ifaces)
 }

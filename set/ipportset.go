@@ -3,7 +3,6 @@ package set
 import (
 	"fmt"
 	"net/netip"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -147,9 +146,6 @@ func (s *IPPortSet) Type() Type {
 
 // String returns a human-readable representation of the IPPortSet.
 func (s *IPPortSet) String() string {
-	if len(s.items) == 0 && len(s.members) == 0 {
-		return "{}"
-	}
 	memberStrings := make([]string, 0, len(s.items)+len(s.members))
 	for ap := range s.items {
 		addr := ap.Addr()
@@ -163,11 +159,7 @@ func (s *IPPortSet) String() string {
 	for _, member := range s.members {
 		memberStrings = append(memberStrings, member.String())
 	}
-	sort.Strings(memberStrings)
-	if len(memberStrings) == 1 {
-		return memberStrings[0]
-	}
-	return "{" + strings.Join(memberStrings, ",") + "}"
+	return formatSortedStrings(memberStrings)
 }
 
 func parseIPPortMember(v string) (ipPortMember, error) {

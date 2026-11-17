@@ -1,10 +1,10 @@
 package set
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/mazdakn/firecore/port"
 )
@@ -12,6 +12,13 @@ import (
 // portRange represents an inclusive range of port numbers [start, end].
 type portRange struct {
 	start, end uint16
+}
+
+func (r portRange) String() string {
+	if r.start == r.end {
+		return strconv.Itoa(int(r.start))
+	}
+	return strconv.Itoa(int(r.start)) + "-" + strconv.Itoa(int(r.end))
 }
 
 // PortSet is a set of uint16 port values and port ranges.
@@ -138,56 +145,16 @@ func (p *PortSet) Type() Type {
 // A single-entry set renders as its number or range (e.g. "80" or "1024-65535").
 // A multi-entry set renders as a sorted brace-enclosed list (e.g. "{80,443}").
 func (p *PortSet) String() string {
-	ports := make([]uint16, 0, len(p.items))
+	entries := make([]portRange, 0, len(p.items)+len(p.ranges))
 	for port := range p.items {
-		ports = append(ports, port)
-	}
-	sort.Slice(ports, func(i, j int) bool { return ports[i] < ports[j] })
-
-	sorted := make([]portRange, len(p.ranges))
-	copy(sorted, p.ranges)
-	sort.Slice(sorted, func(i, j int) bool {
-		if sorted[i].start != sorted[j].start {
-			return sorted[i].start < sorted[j].start
-		}
-		return sorted[i].end < sorted[j].end
-	})
-
-	// Build a merged sorted list by interleaving individual ports (as
-	// single-element ranges) with the stored ranges, ordering by start value.
-	entries := make([]portRange, 0, len(ports)+len(sorted))
-	for _, port := range ports {
 		entries = append(entries, portRange{port, port})
 	}
-	entries = append(entries, sorted...)
-	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].start != entries[j].start {
-			return entries[i].start < entries[j].start
+	entries = append(entries, p.ranges...)
+	slices.SortFunc(entries, func(a, b portRange) int {
+		if c := cmp.Compare(a.start, b.start); c != 0 {
+			return c
 		}
-		return entries[i].end < entries[j].end
+		return cmp.Compare(a.end, b.end)
 	})
-
-	if len(entries) == 1 {
-		e := entries[0]
-		if e.start == e.end {
-			return strconv.Itoa(int(e.start))
-		}
-		return strconv.Itoa(int(e.start)) + "-" + strconv.Itoa(int(e.end))
-	}
-	var sb strings.Builder
-	sb.WriteByte('{')
-	for i, e := range entries {
-		if i > 0 {
-			sb.WriteByte(',')
-		}
-		if e.start == e.end {
-			sb.WriteString(strconv.Itoa(int(e.start)))
-		} else {
-			sb.WriteString(strconv.Itoa(int(e.start)))
-			sb.WriteByte('-')
-			sb.WriteString(strconv.Itoa(int(e.end)))
-		}
-	}
-	sb.WriteByte('}')
-	return sb.String()
+	return formatStringers(entries)
 }

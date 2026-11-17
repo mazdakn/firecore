@@ -2,8 +2,7 @@ package set
 
 import (
 	"fmt"
-	"sort"
-	"strings"
+	"slices"
 
 	"github.com/mazdakn/firecore/proto"
 )
@@ -79,18 +78,6 @@ func (ps *ProtoSet) String() string {
 	for p := range ps.items {
 		protos = append(protos, p)
 	}
-	sort.Slice(protos, func(i, j int) bool { return protos[i] < protos[j] })
-	if len(protos) == 1 {
-		return protos[0].String()
-	}
-	var sb strings.Builder
-	sb.WriteByte('{')
-	for i, p := range protos {
-		if i > 0 {
-			sb.WriteByte(',')
-		}
-		sb.WriteString(p.String())
-	}
-	sb.WriteByte('}')
-	return sb.String()
+	slices.Sort(protos)
+	return formatStringers(protos)
 }

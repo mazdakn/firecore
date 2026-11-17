@@ -3,8 +3,6 @@ package set
 import (
 	"fmt"
 	"net/netip"
-	"sort"
-	"strings"
 
 	"github.com/mazdakn/firecore/iputil"
 )
@@ -134,18 +132,5 @@ func (s *IPSet) String() string {
 	for _, ipnet := range s.nets {
 		cidrs = append(cidrs, ipnet.String())
 	}
-	sort.Strings(cidrs)
-	if len(cidrs) == 1 {
-		return cidrs[0]
-	}
-	var sb strings.Builder
-	sb.WriteByte('{')
-	for i, cidr := range cidrs {
-		if i > 0 {
-			sb.WriteByte(',')
-		}
-		sb.WriteString(cidr)
-	}
-	sb.WriteByte('}')
-	return sb.String()
+	return formatSortedStrings(cidrs)
 }
