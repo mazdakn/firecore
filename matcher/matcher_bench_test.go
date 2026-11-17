@@ -18,7 +18,7 @@ type oldSrcPortMatcher struct {
 }
 
 func (m *oldSrcPortMatcher) Match(pkt *packet.Packet, _ conntrack.State) (bool, error) {
-	return m.Ports.Match(pkt.SrcPort), nil
+	return m.Ports.Match(pkt.Src.Port()), nil
 }
 
 type oldNotSrcPortMatcher struct {
@@ -26,7 +26,7 @@ type oldNotSrcPortMatcher struct {
 }
 
 func (m *oldNotSrcPortMatcher) Match(pkt *packet.Packet, _ conntrack.State) (bool, error) {
-	return !m.Ports.Match(pkt.SrcPort), nil
+	return !m.Ports.Match(pkt.Src.Port()), nil
 }
 
 type oldSrcNetMatcher struct {
@@ -34,7 +34,7 @@ type oldSrcNetMatcher struct {
 }
 
 func (m *oldSrcNetMatcher) Match(pkt *packet.Packet, _ conntrack.State) (bool, error) {
-	return m.Nets.Match(pkt.SrcAddr), nil
+	return m.Nets.Match(pkt.Src.Addr()), nil
 }
 
 type oldNotSrcNetMatcher struct {
@@ -42,7 +42,7 @@ type oldNotSrcNetMatcher struct {
 }
 
 func (m *oldNotSrcNetMatcher) Match(pkt *packet.Packet, _ conntrack.State) (bool, error) {
-	return !m.Nets.Match(pkt.SrcAddr), nil
+	return !m.Nets.Match(pkt.Src.Addr()), nil
 }
 
 func mustPacket(b *testing.B, opts ...packet.Option) *packet.Packet {

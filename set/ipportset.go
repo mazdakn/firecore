@@ -2,7 +2,7 @@ package set
 
 import (
 	"fmt"
-	"net"
+	"net/netip"
 	"sort"
 	"strconv"
 	"strings"
@@ -11,16 +11,18 @@ import (
 	"github.com/mazdakn/firecore/port"
 )
 
-// IPPortTuple is a runtime value used to test membership in an IPPortSet.
-type IPPortTuple struct {
-	IP   net.IP
-	Port uint16
-}
-
 type ipPortMember struct {
-	net   *net.IPNet
+	net   netip.Prefix
 	start uint16
 	end   uint16
+}
+
+func (m ipPortMember) isExact() bool {
+	return m.net.IsSingleIP() && m.start == m.end
+}
+
+func (m ipPortMember) addrPort() netip.AddrPort {
+	return netip.AddrPortFrom(m.net.Addr(), m.start)
 }
 
 func (m ipPortMember) String() string {
@@ -31,75 +33,107 @@ func (m ipPortMember) String() string {
 	return fmt.Sprintf("%s,%s", m.net.String(), portExpr)
 }
 
-// IPPortSet matches an IP and port pair.
+// IPPortSet matches an IP and port pair. Exact (single-IP, single-port)
+// entries are stored in the embedded set[netip.AddrPort] for O(1) lookup,
+// while CIDR or port-range entries are stored in members.
 type IPPortSet struct {
+	set[netip.AddrPort]
 	members []ipPortMember
 }
 
 // NewIPPortSet returns an empty IPPortSet.
 func NewIPPortSet() *IPPortSet {
 	return &IPPortSet{
+		set:     *New[netip.AddrPort](),
 		members: nil,
 	}
 }
 
 // Add inserts a value into the set.
-// v must be a string in the form "ip-or-cidr,port-or-range".
+// v must be a netip.AddrPort or a string in the form "ip-or-cidr,port-or-range"
+// or "ip:port" / "[ipv6]:port".
 func (s *IPPortSet) Add(v any) error {
-	switch val := v.(type) {
-	case string:
-		member, err := parseIPPortMember(val)
-		if err != nil {
-			return err
-		}
-		s.members = append(s.members, member)
-		return nil
-	default:
-		return fmt.Errorf("IPPortSet.Add: unsupported type %T", v)
+	member, err := toIPPortMember("IPPortSet.Add", v)
+	if err != nil {
+		return err
 	}
+	if member.isExact() {
+		s.set.Add(member.addrPort())
+		return nil
+	}
+	for _, existing := range s.members {
+		if existing == member {
+			return nil
+		}
+	}
+	s.members = append(s.members, member)
+	return nil
 }
 
-// Delete removes a value from the set. v must be a string in the same
-// "ip-or-cidr,port-or-range" form accepted by Add.
+// Delete removes a value from the set. v accepts the same types as Add: a
+// netip.AddrPort or a string in the "ip-or-cidr,port-or-range" or "ip:port" form.
 func (s *IPPortSet) Delete(v any) error {
-	switch val := v.(type) {
-	case string:
-		member, err := parseIPPortMember(val)
-		if err != nil {
-			return err
-		}
-		for i, existing := range s.members {
-			if existing.net.String() == member.net.String() &&
-				existing.start == member.start && existing.end == member.end {
-				s.members = append(s.members[:i], s.members[i+1:]...)
-				break
-			}
-		}
+	member, err := toIPPortMember("IPPortSet.Delete", v)
+	if err != nil {
+		return err
+	}
+	if member.isExact() {
+		s.set.Delete(member.addrPort())
 		return nil
+	}
+	for i, existing := range s.members {
+		if existing == member {
+			s.members = append(s.members[:i], s.members[i+1:]...)
+			break
+		}
+	}
+	return nil
+}
+
+func toIPPortMember(op string, v any) (ipPortMember, error) {
+	switch val := v.(type) {
+	case netip.AddrPort:
+		if !val.IsValid() {
+			return ipPortMember{}, fmt.Errorf("%s: netip.AddrPort must be valid", op)
+		}
+		addr := val.Addr()
+		p := val.Port()
+		return ipPortMember{
+			net:   netip.PrefixFrom(addr, addr.BitLen()),
+			start: p,
+			end:   p,
+		}, nil
+	case string:
+		return parseIPPortMember(val)
 	default:
-		return fmt.Errorf("IPPortSet.Delete: unsupported type %T", v)
+		return ipPortMember{}, fmt.Errorf("%s: unsupported type %T", op, v)
 	}
 }
 
 // Match reports whether v is contained in the set.
-// v must be an IPPortTuple value.
+// v must be a netip.AddrPort value.
 func (s *IPPortSet) Match(v any) bool {
-	tuple, ok := v.(IPPortTuple)
+	ap, ok := v.(netip.AddrPort)
 	if !ok {
 		return false
 	}
-	return s.MatchIPPort(tuple)
+	return s.MatchIPPort(ap)
 }
 
-// MatchIPPort reports whether tuple is contained in the set. Unlike Match, it
-// takes a concrete IPPortTuple rather than any, letting callers on the
+// MatchIPPort reports whether ap is contained in the set. Unlike Match, it
+// takes a concrete netip.AddrPort rather than any, letting callers on the
 // packet-matching hot path avoid interface-boxing it.
-func (s *IPPortSet) MatchIPPort(tuple IPPortTuple) bool {
+func (s *IPPortSet) MatchIPPort(ap netip.AddrPort) bool {
+	if s.Exists(ap) {
+		return true
+	}
+	ip := ap.Addr()
+	p := ap.Port()
 	for _, member := range s.members {
-		if !member.net.Contains(tuple.IP) {
+		if !member.net.Contains(ip) {
 			continue
 		}
-		if tuple.Port < member.start || tuple.Port > member.end {
+		if p < member.start || p > member.end {
 			continue
 		}
 		return true
@@ -113,10 +147,19 @@ func (s *IPPortSet) Type() Type {
 
 // String returns a human-readable representation of the IPPortSet.
 func (s *IPPortSet) String() string {
-	if len(s.members) == 0 {
+	if len(s.items) == 0 && len(s.members) == 0 {
 		return "{}"
 	}
-	memberStrings := make([]string, 0, len(s.members))
+	memberStrings := make([]string, 0, len(s.items)+len(s.members))
+	for ap := range s.items {
+		addr := ap.Addr()
+		m := ipPortMember{
+			net:   netip.PrefixFrom(addr, addr.BitLen()),
+			start: ap.Port(),
+			end:   ap.Port(),
+		}
+		memberStrings = append(memberStrings, m.String())
+	}
 	for _, member := range s.members {
 		memberStrings = append(memberStrings, member.String())
 	}
@@ -128,6 +171,17 @@ func (s *IPPortSet) String() string {
 }
 
 func parseIPPortMember(v string) (ipPortMember, error) {
+	if !strings.Contains(v, ",") {
+		if ap, err := netip.ParseAddrPort(v); err == nil {
+			addr := ap.Addr()
+			p := ap.Port()
+			return ipPortMember{
+				net:   netip.PrefixFrom(addr, addr.BitLen()),
+				start: p,
+				end:   p,
+			}, nil
+		}
+	}
 	parts := strings.Split(v, ",")
 	if len(parts) != 2 {
 		return ipPortMember{}, fmt.Errorf("invalid ipport member %q: expected format ip-or-cidr,port", v)
@@ -154,4 +208,3 @@ func parseIPPortMember(v string) (ipPortMember, error) {
 		end:   end,
 	}, nil
 }
-

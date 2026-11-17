@@ -2,7 +2,7 @@ package conntrack
 
 import (
 	"fmt"
-	"net"
+	"net/netip"
 	"strings"
 	"sync"
 
@@ -32,26 +32,10 @@ func ParseState(raw string) (State, error) {
 	}
 }
 
-type ipAddr [16]byte
-
-func ipToAddr(ip net.IP) ipAddr {
-	var a ipAddr
-	if ip4 := ip.To4(); ip4 != nil {
-		a[10] = 0xff
-		a[11] = 0xff
-		copy(a[12:], ip4)
-	} else if len(ip) == 16 {
-		copy(a[:], ip)
-	}
-	return a
-}
-
 type key struct {
-	Proto   proto.Proto
-	SrcAddr ipAddr
-	SrcPort uint16
-	DstAddr ipAddr
-	DstPort uint16
+	Proto proto.Proto
+	Src   netip.AddrPort
+	Dst   netip.AddrPort
 }
 
 type Tracker struct {
@@ -94,20 +78,16 @@ func (t *Tracker) CommitAccepted(pkt *packet.Packet) error {
 
 func keyFromPacket(pkt *packet.Packet) key {
 	return key{
-		Proto:   pkt.Proto,
-		SrcAddr: ipToAddr(pkt.SrcAddr),
-		SrcPort: pkt.SrcPort,
-		DstAddr: ipToAddr(pkt.DstAddr),
-		DstPort: pkt.DstPort,
+		Proto: pkt.Proto,
+		Src:   pkt.Src,
+		Dst:   pkt.Dst,
 	}
 }
 
 func reverseKeyFromPacket(pkt *packet.Packet) key {
 	return key{
-		Proto:   pkt.Proto,
-		SrcAddr: ipToAddr(pkt.DstAddr),
-		SrcPort: pkt.DstPort,
-		DstAddr: ipToAddr(pkt.SrcAddr),
-		DstPort: pkt.SrcPort,
+		Proto: pkt.Proto,
+		Src:   pkt.Dst,
+		Dst:   pkt.Src,
 	}
 }

@@ -33,8 +33,8 @@ func TestParseCIDROrIP(t *testing.T) {
 		if got := ipnet4.String(); got != "192.168.1.1/32" {
 			t.Errorf("ipnet4.String() = %q; want 192.168.1.1/32", got)
 		}
-		if len(ipnet4.IP) != len(ipnet4.Mask) {
-			t.Errorf("len(ipnet4.IP) = %d != len(ipnet4.Mask) = %d", len(ipnet4.IP), len(ipnet4.Mask))
+		if ipnet4.Bits() != 32 {
+			t.Errorf("ipnet4.Bits() = %d; want 32", ipnet4.Bits())
 		}
 
 		ipnet6, err := iputil.ParseCIDROrIP("2001:db8::1")
@@ -44,8 +44,8 @@ func TestParseCIDROrIP(t *testing.T) {
 		if got := ipnet6.String(); got != "2001:db8::1/128" {
 			t.Errorf("ipnet6.String() = %q; want 2001:db8::1/128", got)
 		}
-		if len(ipnet6.IP) != len(ipnet6.Mask) {
-			t.Errorf("len(ipnet6.IP) = %d != len(ipnet6.Mask) = %d", len(ipnet6.IP), len(ipnet6.Mask))
+		if ipnet6.Bits() != 128 {
+			t.Errorf("ipnet6.Bits() = %d; want 128", ipnet6.Bits())
 		}
 	})
 

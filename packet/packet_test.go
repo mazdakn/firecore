@@ -78,20 +78,20 @@ func TestNewEmpty(t *testing.T) {
 	if pkt == nil {
 		t.Fatal("mustNewPacket returned nil")
 	}
-	if pkt.SrcAddr != nil {
-		t.Errorf("pkt.SrcAddr = %v; want nil", pkt.SrcAddr)
+	if pkt.Src.IsValid() {
+		t.Errorf("pkt.Src = %v; want invalid", pkt.Src)
 	}
-	if pkt.DstAddr != nil {
-		t.Errorf("pkt.DstAddr = %v; want nil", pkt.DstAddr)
+	if pkt.Dst.IsValid() {
+		t.Errorf("pkt.Dst = %v; want invalid", pkt.Dst)
 	}
 	if pkt.Proto != proto.Proto(0) {
 		t.Errorf("pkt.Proto = %v; want 0", pkt.Proto)
 	}
-	if pkt.SrcPort != 0 {
-		t.Errorf("pkt.SrcPort = %d; want 0", pkt.SrcPort)
+	if pkt.Src.Port() != 0 {
+		t.Errorf("pkt.Src.Port() = %d; want 0", pkt.Src.Port())
 	}
-	if pkt.DstPort != 0 {
-		t.Errorf("pkt.DstPort = %d; want 0", pkt.DstPort)
+	if pkt.Dst.Port() != 0 {
+		t.Errorf("pkt.Dst.Port() = %d; want 0", pkt.Dst.Port())
 	}
 	if pkt.Payload != nil {
 		t.Errorf("pkt.Payload = %v; want nil", pkt.Payload)
@@ -171,8 +171,8 @@ func TestWithSrcPort(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pkt := mustNewPacket(t, WithSrcPort(tt.port))
-			if pkt.SrcPort != tt.port {
-				t.Errorf("pkt.SrcPort = %d; want %d", pkt.SrcPort, tt.port)
+			if pkt.Src.Port() != tt.port {
+				t.Errorf("pkt.Src.Port() = %d; want %d", pkt.Src.Port(), tt.port)
 			}
 		})
 	}
@@ -193,8 +193,8 @@ func TestWithDstPort(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pkt := mustNewPacket(t, WithDstPort(tt.port))
-			if pkt.DstPort != tt.port {
-				t.Errorf("pkt.DstPort = %d; want %d", pkt.DstPort, tt.port)
+			if pkt.Dst.Port() != tt.port {
+				t.Errorf("pkt.Dst.Port() = %d; want %d", pkt.Dst.Port(), tt.port)
 			}
 		})
 	}
@@ -215,11 +215,11 @@ func TestWithSrcAddrIPv4(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pkt := mustNewPacket(t, WithSrcAddr(tt.addr))
-			if pkt.SrcAddr == nil {
-				t.Fatalf("pkt.SrcAddr is nil")
+			if !pkt.Src.Addr().IsValid() {
+				t.Fatalf("pkt.Src.Addr() is invalid")
 			}
-			if got := pkt.SrcAddr.String(); got != tt.addr {
-				t.Errorf("pkt.SrcAddr.String() = %q; want %q", got, tt.addr)
+			if got := pkt.Src.Addr().String(); got != tt.addr {
+				t.Errorf("pkt.Src.Addr().String() = %q; want %q", got, tt.addr)
 			}
 		})
 	}
@@ -240,11 +240,11 @@ func TestWithSrcAddrIPv6(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pkt := mustNewPacket(t, WithSrcAddr(tt.addr))
-			if pkt.SrcAddr == nil {
-				t.Fatalf("pkt.SrcAddr is nil")
+			if !pkt.Src.Addr().IsValid() {
+				t.Fatalf("pkt.Src.Addr() is invalid")
 			}
-			if got := pkt.SrcAddr.String(); got != tt.expected {
-				t.Errorf("pkt.SrcAddr.String() = %q; want %q", got, tt.expected)
+			if got := pkt.Src.Addr().String(); got != tt.expected {
+				t.Errorf("pkt.Src.Addr().String() = %q; want %q", got, tt.expected)
 			}
 		})
 	}
@@ -265,11 +265,11 @@ func TestWithDstAddrIPv4(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pkt := mustNewPacket(t, WithDstAddr(tt.addr))
-			if pkt.DstAddr == nil {
-				t.Fatalf("pkt.DstAddr is nil")
+			if !pkt.Dst.Addr().IsValid() {
+				t.Fatalf("pkt.Dst.Addr() is invalid")
 			}
-			if got := pkt.DstAddr.String(); got != tt.addr {
-				t.Errorf("pkt.DstAddr.String() = %q; want %q", got, tt.addr)
+			if got := pkt.Dst.Addr().String(); got != tt.addr {
+				t.Errorf("pkt.Dst.Addr().String() = %q; want %q", got, tt.addr)
 			}
 		})
 	}
@@ -290,11 +290,11 @@ func TestWithDstAddrIPv6(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pkt := mustNewPacket(t, WithDstAddr(tt.addr))
-			if pkt.DstAddr == nil {
-				t.Fatalf("pkt.DstAddr is nil")
+			if !pkt.Dst.Addr().IsValid() {
+				t.Fatalf("pkt.Dst.Addr() is invalid")
 			}
-			if got := pkt.DstAddr.String(); got != tt.expected {
-				t.Errorf("pkt.DstAddr.String() = %q; want %q", got, tt.expected)
+			if got := pkt.Dst.Addr().String(); got != tt.expected {
+				t.Errorf("pkt.Dst.Addr().String() = %q; want %q", got, tt.expected)
 			}
 		})
 	}
@@ -332,6 +332,26 @@ func TestWithInvalidAddr(t *testing.T) {
 	}
 }
 
+func TestWithSrcAndDstAddrPort(t *testing.T) {
+	pkt := mustNewPacket(t,
+		WithSrcAddrPort("10.0.0.1:12345"),
+		WithDstAddrPort("[2001:db8::1]:443"),
+	)
+	if got := pkt.Src.String(); got != "10.0.0.1:12345" {
+		t.Errorf("pkt.Src = %q; want 10.0.0.1:12345", got)
+	}
+	if got := pkt.Dst.String(); got != "[2001:db8::1]:443" {
+		t.Errorf("pkt.Dst = %q; want [2001:db8::1]:443", got)
+	}
+
+	if _, err := New(WithSrcAddrPort("invalid")); err == nil {
+		t.Error("WithSrcAddrPort(invalid) expected error, got nil")
+	}
+	if _, err := New(WithDstAddrPort("invalid")); err == nil {
+		t.Error("WithDstAddrPort(invalid) expected error, got nil")
+	}
+}
+
 func TestNewMultipleOptions(t *testing.T) {
 	pkt := mustNewPacket(t,
 		WithProto(6),
@@ -344,17 +364,17 @@ func TestNewMultipleOptions(t *testing.T) {
 	if pkt.Proto != proto.TCP {
 		t.Errorf("pkt.Proto = %v; want %v", pkt.Proto, proto.TCP)
 	}
-	if got := pkt.SrcAddr.String(); got != "10.0.0.1" {
-		t.Errorf("pkt.SrcAddr = %q; want 10.0.0.1", got)
+	if got := pkt.Src.Addr().String(); got != "10.0.0.1" {
+		t.Errorf("pkt.Src.Addr() = %q; want 10.0.0.1", got)
 	}
-	if pkt.SrcPort != 12345 {
-		t.Errorf("pkt.SrcPort = %d; want 12345", pkt.SrcPort)
+	if pkt.Src.Port() != 12345 {
+		t.Errorf("pkt.Src.Port() = %d; want 12345", pkt.Src.Port())
 	}
-	if got := pkt.DstAddr.String(); got != "192.168.1.1" {
-		t.Errorf("pkt.DstAddr = %q; want 192.168.1.1", got)
+	if got := pkt.Dst.Addr().String(); got != "192.168.1.1" {
+		t.Errorf("pkt.Dst.Addr() = %q; want 192.168.1.1", got)
 	}
-	if pkt.DstPort != 80 {
-		t.Errorf("pkt.DstPort = %d; want 80", pkt.DstPort)
+	if pkt.Dst.Port() != 80 {
+		t.Errorf("pkt.Dst.Port() = %d; want 80", pkt.Dst.Port())
 	}
 }
 
@@ -370,17 +390,17 @@ func TestNewMultipleOptionsIPv6(t *testing.T) {
 	if pkt.Proto != proto.UDP {
 		t.Errorf("pkt.Proto = %v; want %v", pkt.Proto, proto.UDP)
 	}
-	if got := pkt.SrcAddr.String(); got != "2001:db8::1" {
-		t.Errorf("pkt.SrcAddr = %q; want 2001:db8::1", got)
+	if got := pkt.Src.Addr().String(); got != "2001:db8::1" {
+		t.Errorf("pkt.Src.Addr() = %q; want 2001:db8::1", got)
 	}
-	if pkt.SrcPort != 54321 {
-		t.Errorf("pkt.SrcPort = %d; want 54321", pkt.SrcPort)
+	if pkt.Src.Port() != 54321 {
+		t.Errorf("pkt.Src.Port() = %d; want 54321", pkt.Src.Port())
 	}
-	if got := pkt.DstAddr.String(); got != "cafe::1" {
-		t.Errorf("pkt.DstAddr = %q; want cafe::1", got)
+	if got := pkt.Dst.Addr().String(); got != "cafe::1" {
+		t.Errorf("pkt.Dst.Addr() = %q; want cafe::1", got)
 	}
-	if pkt.DstPort != 443 {
-		t.Errorf("pkt.DstPort = %d; want 443", pkt.DstPort)
+	if pkt.Dst.Port() != 443 {
+		t.Errorf("pkt.Dst.Port() = %d; want 443", pkt.Dst.Port())
 	}
 }
 
@@ -486,23 +506,23 @@ func TestPacketStringIPv6(t *testing.T) {
 func TestPacketStringEmptyPacket(t *testing.T) {
 	pkt := mustNewPacket(t)
 	result := pkt.String()
-	// Empty packet will have nil IPs which will be formatted as <nil>
-	if result != "0{<nil>:0-><nil>:0}" {
-		t.Errorf("pkt.String() = %q; want %q", result, "0{<nil>:0-><nil>:0}")
+	// Empty packet will have zero netip.Addrs which are formatted as "invalid IP"
+	if result != "0{invalid IP:0->invalid IP:0}" {
+		t.Errorf("pkt.String() = %q; want %q", result, "0{invalid IP:0->invalid IP:0}")
 	}
 }
 
 func TestPacketStringPartialPacket(t *testing.T) {
 	// Only protocol
 	pkt1 := mustNewPacket(t, WithProto(proto.TCP))
-	if got := pkt1.String(); got != "tcp{<nil>:0-><nil>:0}" {
-		t.Errorf("pkt1.String() = %q; want %q", got, "tcp{<nil>:0-><nil>:0}")
+	if got := pkt1.String(); got != "tcp{invalid IP:0->invalid IP:0}" {
+		t.Errorf("pkt1.String() = %q; want %q", got, "tcp{invalid IP:0->invalid IP:0}")
 	}
 
 	// Only ports
 	pkt2 := mustNewPacket(t, WithSrcPort(1234), WithDstPort(5678))
-	if got := pkt2.String(); got != "0{<nil>:1234-><nil>:5678}" {
-		t.Errorf("pkt2.String() = %q; want %q", got, "0{<nil>:1234-><nil>:5678}")
+	if got := pkt2.String(); got != "0{invalid IP:1234->invalid IP:5678}" {
+		t.Errorf("pkt2.String() = %q; want %q", got, "0{invalid IP:1234->invalid IP:5678}")
 	}
 
 	// Only addresses
@@ -523,11 +543,11 @@ func TestPacketOptionsCanBeReused(t *testing.T) {
 	if pkt1.Proto != pkt2.Proto {
 		t.Errorf("pkt1.Proto (%v) != pkt2.Proto (%v)", pkt1.Proto, pkt2.Proto)
 	}
-	if pkt1.SrcPort != pkt2.SrcPort {
-		t.Errorf("pkt1.SrcPort (%d) != pkt2.SrcPort (%d)", pkt1.SrcPort, pkt2.SrcPort)
+	if pkt1.Src != pkt2.Src {
+		t.Errorf("pkt1.Src (%v) != pkt2.Src (%v)", pkt1.Src, pkt2.Src)
 	}
-	if pkt1.DstPort != pkt2.DstPort {
-		t.Errorf("pkt1.DstPort (%d) != pkt2.DstPort (%d)", pkt1.DstPort, pkt2.DstPort)
+	if pkt1.Dst != pkt2.Dst {
+		t.Errorf("pkt1.Dst (%v) != pkt2.Dst (%v)", pkt1.Dst, pkt2.Dst)
 	}
 }
 
@@ -551,16 +571,10 @@ func TestPacketOptionsOrderIndependent(t *testing.T) {
 	if pkt1.Proto != pkt2.Proto {
 		t.Errorf("pkt1.Proto (%v) != pkt2.Proto (%v)", pkt1.Proto, pkt2.Proto)
 	}
-	if pkt1.SrcAddr.String() != pkt2.SrcAddr.String() {
-		t.Errorf("pkt1.SrcAddr (%s) != pkt2.SrcAddr (%s)", pkt1.SrcAddr, pkt2.SrcAddr)
+	if pkt1.Src != pkt2.Src {
+		t.Errorf("pkt1.Src (%v) != pkt2.Src (%v)", pkt1.Src, pkt2.Src)
 	}
-	if pkt1.SrcPort != pkt2.SrcPort {
-		t.Errorf("pkt1.SrcPort (%d) != pkt2.SrcPort (%d)", pkt1.SrcPort, pkt2.SrcPort)
-	}
-	if pkt1.DstAddr.String() != pkt2.DstAddr.String() {
-		t.Errorf("pkt1.DstAddr (%s) != pkt2.DstAddr (%s)", pkt1.DstAddr, pkt2.DstAddr)
-	}
-	if pkt1.DstPort != pkt2.DstPort {
-		t.Errorf("pkt1.DstPort (%d) != pkt2.DstPort (%d)", pkt1.DstPort, pkt2.DstPort)
+	if pkt1.Dst != pkt2.Dst {
+		t.Errorf("pkt1.Dst (%v) != pkt2.Dst (%v)", pkt1.Dst, pkt2.Dst)
 	}
 }

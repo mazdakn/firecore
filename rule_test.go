@@ -1068,6 +1068,38 @@ func TestNegatedIPPortSetRuleMatch(t *testing.T) {
 	}
 }
 
+func TestWithSrcAndDstAddrPortRuleMatch(t *testing.T) {
+	r := mustNew(
+		WithSrcAddrPort("10.1.2.3:1234"),
+		WithDstAddrPort("1.1.1.1:443"),
+		WithNotSrcAddrPort("10.1.2.3:9999"),
+		WithNotDstAddrPort("1.1.1.1:80"),
+	)
+
+	pktMatch := mustNewPacket(t,
+		packet.WithSrcAddrPort("10.1.2.3:1234"),
+		packet.WithDstAddrPort("1.1.1.1:443"),
+	)
+	if !r.Match(pktMatch) {
+		t.Error("r.Match(pktMatch) = false; want true")
+	}
+
+	pktNoMatch := mustNewPacket(t,
+		packet.WithSrcAddrPort("10.1.2.3:1234"),
+		packet.WithDstAddrPort("1.1.1.1:80"),
+	)
+	if r.Match(pktNoMatch) {
+		t.Error("r.Match(pktNoMatch) = true; want false")
+	}
+
+	if _, err := NewRule(WithSrcAddrPort("invalid")); err == nil {
+		t.Error("WithSrcAddrPort(invalid) expected error, got nil")
+	}
+	if _, err := NewRule(WithDstAddrPort("invalid")); err == nil {
+		t.Error("WithDstAddrPort(invalid) expected error, got nil")
+	}
+}
+
 func TestIngressIfaceMatch(t *testing.T) {
 	pktEth0 := mustNewPacket(t, packet.WithSrcAddr("10.0.0.1"), packet.WithIngressIface("eth0"))
 	pktEth1 := mustNewPacket(t, packet.WithSrcAddr("10.0.0.2"), packet.WithIngressIface("eth1"))

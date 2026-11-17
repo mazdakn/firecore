@@ -3,7 +3,7 @@ package packet
 import (
 	"bytes"
 	"fmt"
-	"net"
+	"net/netip"
 
 	"github.com/mazdakn/firecore/proto"
 )
@@ -26,36 +26,58 @@ func WithProto(p proto.Proto) Option {
 
 func WithSrcPort(port uint16) Option {
 	return func(p *Packet) error {
-		p.SrcPort = port
+		p.Src = netip.AddrPortFrom(p.Src.Addr(), port)
 		return nil
 	}
 }
 
 func WithDstPort(port uint16) Option {
 	return func(p *Packet) error {
-		p.DstPort = port
+		p.Dst = netip.AddrPortFrom(p.Dst.Addr(), port)
 		return nil
 	}
 }
 
 func WithSrcAddr(addr string) Option {
 	return func(p *Packet) error {
-		ip := net.ParseIP(addr)
-		if ip == nil {
+		ip, err := netip.ParseAddr(addr)
+		if err != nil {
 			return fmt.Errorf("invalid source address: %q", addr)
 		}
-		p.SrcAddr = ip
+		p.Src = netip.AddrPortFrom(ip, p.Src.Port())
 		return nil
 	}
 }
 
 func WithDstAddr(addr string) Option {
 	return func(p *Packet) error {
-		ip := net.ParseIP(addr)
-		if ip == nil {
+		ip, err := netip.ParseAddr(addr)
+		if err != nil {
 			return fmt.Errorf("invalid destination address: %q", addr)
 		}
-		p.DstAddr = ip
+		p.Dst = netip.AddrPortFrom(ip, p.Dst.Port())
+		return nil
+	}
+}
+
+func WithSrcAddrPort(addrPort string) Option {
+	return func(p *Packet) error {
+		ap, err := netip.ParseAddrPort(addrPort)
+		if err != nil {
+			return fmt.Errorf("invalid source address:port: %q", addrPort)
+		}
+		p.Src = ap
+		return nil
+	}
+}
+
+func WithDstAddrPort(addrPort string) Option {
+	return func(p *Packet) error {
+		ap, err := netip.ParseAddrPort(addrPort)
+		if err != nil {
+			return fmt.Errorf("invalid destination address:port: %q", addrPort)
+		}
+		p.Dst = ap
 		return nil
 	}
 }
@@ -108,13 +130,10 @@ func New(opts ...Option) (*Packet, error) {
 }
 
 type Packet struct {
-	SrcAddr net.IP
-	DstAddr net.IP
+	Src netip.AddrPort
+	Dst netip.AddrPort
 
 	Proto proto.Proto
-
-	SrcPort uint16
-	DstPort uint16
 
 	Payload []byte
 	// Size is the packet's full on-the-wire size, including headers. Unlike
@@ -129,6 +148,6 @@ func (p *Packet) String() string {
 	if p.Metadata.Name != "" {
 		return p.Metadata.Name
 	}
-	return fmt.Sprintf("%s{%s:%d->%s:%d}", p.Proto, p.SrcAddr.String(), p.SrcPort,
-		p.DstAddr.String(), p.DstPort)
+	return fmt.Sprintf("%s{%s:%d->%s:%d}", p.Proto, p.Src.Addr().String(), p.Src.Port(),
+		p.Dst.Addr().String(), p.Dst.Port())
 }

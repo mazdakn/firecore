@@ -1,7 +1,7 @@
 package matcher
 
 import (
-	"net"
+	"net/netip"
 	"slices"
 
 	"github.com/mazdakn/firecore/conntrack"
@@ -34,9 +34,8 @@ func (n Negated) Match(pkt *packet.Packet, state conntrack.State) bool {
 }
 
 // matchNamedSet reports whether s matches the value corresponding to its
-// type: an IP set is matched against ip, a port set against port, an
-// IP:port set against the (ip, port) tuple, and an interface set against
-// iface.
+// type: an IP set is matched against ap.Addr(), a port set against ap.Port(),
+// an IP:port set against ap, and an interface set against iface.
 //
 // It dispatches on s's concrete type rather than going through Set.Match(any)
 // as Type() dispatch would: calling Match(any) via the Set interface forces
@@ -44,14 +43,14 @@ func (n Negated) Match(pkt *packet.Packet, state conntrack.State) bool {
 // escape analysis can't see into an unknown interface method. A type switch
 // on the concrete pointer lets it call the typed Match* method directly,
 // keeping the argument on the stack.
-func matchNamedSet(s set.Set, ip net.IP, port uint16, iface string) bool {
+func matchNamedSet(s set.Set, ap netip.AddrPort, iface string) bool {
 	switch cs := s.(type) {
 	case *set.IPSet:
-		return cs.MatchIP(ip)
+		return cs.MatchIP(ap.Addr())
 	case *set.PortSet:
-		return cs.MatchPort(port)
+		return cs.MatchPort(ap.Port())
 	case *set.IPPortSet:
-		return cs.MatchIPPort(set.IPPortTuple{IP: ip, Port: port})
+		return cs.MatchIPPort(ap)
 	case *set.IfaceSet:
 		return cs.MatchIface(iface)
 	default:
@@ -75,7 +74,7 @@ type SrcSetMatcher struct {
 }
 
 func (m *SrcSetMatcher) Match(pkt *packet.Packet, _ conntrack.State) bool {
-	return matchNamedSet(m.Set, pkt.SrcAddr, pkt.SrcPort, pkt.Metadata.IngressIface)
+	return matchNamedSet(m.Set, pkt.Src, pkt.Metadata.IngressIface)
 }
 
 // DstSetMatcher matches packets whose destination-derived value (address,
@@ -85,7 +84,7 @@ type DstSetMatcher struct {
 }
 
 func (m *DstSetMatcher) Match(pkt *packet.Packet, _ conntrack.State) bool {
-	return matchNamedSet(m.Set, pkt.DstAddr, pkt.DstPort, pkt.Metadata.EgressIface)
+	return matchNamedSet(m.Set, pkt.Dst, pkt.Metadata.EgressIface)
 }
 
 // ConnStateMatcher matches packets whose connection-tracking state is in States.

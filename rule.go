@@ -430,6 +430,58 @@ func WithNotDstNet(cidr string) RuleOption {
 	return withDstNet(cidr, true)
 }
 
+// Source and destination address:port options.
+
+func withSrcAddrPort(addrPort string, negate bool) RuleOption {
+	return func(r *Rule) error {
+		s, ok := findSrcSet(r, negate, set.TypeIPPort)
+		var ipPorts *set.IPPortSet
+		if ok {
+			ipPorts = s.(*set.IPPortSet)
+		} else {
+			ipPorts = set.NewIPPortSet()
+			addMatcher(r, &matcher.SrcSetMatcher{Set: ipPorts}, negate)
+		}
+		if err := ipPorts.Add(addrPort); err != nil {
+			return fmt.Errorf("invalid source addr:port %s: %w", addrPort, err)
+		}
+		return nil
+	}
+}
+
+func WithSrcAddrPort(addrPort string) RuleOption {
+	return withSrcAddrPort(addrPort, false)
+}
+
+func WithNotSrcAddrPort(addrPort string) RuleOption {
+	return withSrcAddrPort(addrPort, true)
+}
+
+func withDstAddrPort(addrPort string, negate bool) RuleOption {
+	return func(r *Rule) error {
+		s, ok := findDstSet(r, negate, set.TypeIPPort)
+		var ipPorts *set.IPPortSet
+		if ok {
+			ipPorts = s.(*set.IPPortSet)
+		} else {
+			ipPorts = set.NewIPPortSet()
+			addMatcher(r, &matcher.DstSetMatcher{Set: ipPorts}, negate)
+		}
+		if err := ipPorts.Add(addrPort); err != nil {
+			return fmt.Errorf("invalid destination addr:port %s: %w", addrPort, err)
+		}
+		return nil
+	}
+}
+
+func WithDstAddrPort(addrPort string) RuleOption {
+	return withDstAddrPort(addrPort, false)
+}
+
+func WithNotDstAddrPort(addrPort string) RuleOption {
+	return withDstAddrPort(addrPort, true)
+}
+
 // Source interface options.
 
 func withSrcIface(iface string, negate bool) RuleOption {
