@@ -115,9 +115,7 @@ func WithSize(size uint32) Option {
 }
 
 func New(opts ...Option) (*Packet, error) {
-	p := Packet{
-		Metadata: NewMetadata(),
-	}
+	var p Packet
 	for _, o := range opts {
 		if o == nil {
 			return nil, fmt.Errorf("packet option must not be nil")
