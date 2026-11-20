@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mazdakn/firecore/iputil"
 	"github.com/mazdakn/firecore/port"
 )
 
@@ -181,7 +180,7 @@ func parseIPPortMember(v string) (ipPortMember, error) {
 	ipExpr := strings.TrimSpace(parts[0])
 	portExpr := strings.TrimSpace(parts[1])
 
-	ipnet, err := iputil.ParseCIDROrIP(ipExpr)
+	ipnet, err := parseCIDROrIP(ipExpr)
 	if err != nil {
 		return ipPortMember{}, fmt.Errorf("invalid ip in %q: %w", v, err)
 	}

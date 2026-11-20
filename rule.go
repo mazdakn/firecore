@@ -3,13 +3,13 @@ package firecore
 import (
 	"fmt"
 	"net/netip"
+	"regexp"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"github.com/mazdakn/firecore/conntrack"
-	"github.com/mazdakn/firecore/counter"
 	"github.com/mazdakn/firecore/packet"
-	"github.com/mazdakn/firecore/payload"
 	"github.com/mazdakn/firecore/proto"
 	"github.com/mazdakn/firecore/set"
 )
@@ -205,11 +205,11 @@ func WithName(name string) RuleOption {
 
 func WithPayload(pattern string) RuleOption {
 	return func(r *Rule) error {
-		pm, err := payload.New(pattern)
+		re, err := regexp.Compile(pattern)
 		if err != nil {
 			return fmt.Errorf("invalid payload regex %q: %w", pattern, err)
 		}
-		r.payload = pm
+		r.payload = re
 		return nil
 	}
 }
@@ -332,10 +332,7 @@ func WithDstIface(iface string) RuleOption    { return withIface(iface, true, fa
 func WithNotDstIface(iface string) RuleOption { return withIface(iface, true, true) }
 
 func NewRule(opts ...RuleOption) (*Rule, error) {
-	r := Rule{
-		packetCount: counter.New(),
-		byteCount:   counter.New(),
-	}
+	var r Rule
 	for _, o := range opts {
 		if o == nil {
 			return nil, fmt.Errorf("rule option must not be nil")
@@ -361,10 +358,10 @@ type Rule struct {
 	notDst        *endpointFilter
 	connStates    []conntrack.State
 	notConnStates []conntrack.State
-	payload       *payload.Matcher
+	payload       *regexp.Regexp
 
-	packetCount *counter.Counter
-	byteCount   *counter.Counter
+	packetCount atomic.Uint64
+	byteCount   atomic.Uint64
 }
 
 func (r *Rule) Match(pkt *packet.Packet) bool {
@@ -406,25 +403,25 @@ func (r *Rule) MatchWithConntrackState(pkt *packet.Packet, state conntrack.State
 		return false
 	}
 	// All conditions passed - increment packet and byte counters
-	r.packetCount.Increment()
+	r.packetCount.Add(1)
 	r.byteCount.Add(uint64(pkt.Size))
 	return true
 }
 
 func (r *Rule) PacketCount() uint64 {
-	return r.packetCount.Get()
+	return r.packetCount.Load()
 }
 
 func (r *Rule) IncrementPacketCount() {
-	r.packetCount.Increment()
+	r.packetCount.Add(1)
 }
 
 func (r *Rule) ResetPacketCount() {
-	r.packetCount.Reset()
+	r.packetCount.Store(0)
 }
 
 func (r *Rule) ByteCount() uint64 {
-	return r.byteCount.Get()
+	return r.byteCount.Load()
 }
 
 func (r *Rule) AddByteCount(n uint64) {
@@ -432,5 +429,5 @@ func (r *Rule) AddByteCount(n uint64) {
 }
 
 func (r *Rule) ResetByteCount() {
-	r.byteCount.Reset()
+	r.byteCount.Store(0)
 }

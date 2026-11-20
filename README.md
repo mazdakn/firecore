@@ -90,8 +90,6 @@ func main() {
 | `port` | Port numbers, well-known names, and ranges |
 | `set` | Named, reusable sets of IPs, ports, IP:port pairs, interfaces, and protocols |
 | `conntrack` | Connection-state tracking (new vs. established) |
-| `counter` | Atomic packet counters used by `Rule` |
-| `payload` | Regex-based payload matching |
 
 ## Testing
 
