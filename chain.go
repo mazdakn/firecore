@@ -51,7 +51,8 @@ func (c *Chain) AddRule(r *Rule) error {
 	return nil
 }
 
-// match evaluates the chain's rules against pkt.
+// match evaluates the chain's rules against pkt using the already-resolved
+// conntrack state.
 //
 // chains is the complete map of chains in the parent table, used to resolve
 // Jump targets. depth counts the number of nested Jump calls taken to reach
@@ -59,43 +60,37 @@ func (c *Chain) AddRule(r *Rule) error {
 // cycles that Table.Validate wasn't run to catch. All evaluated rules
 // (whether they match or not) are appended to result.Trace.
 //
-// Returns true if a rule set result.Verdict (Accept, Drop, or Pass) and
-// evaluation is done; the caller distinguishes which via
-// result.Verdict.IsTerminal(). Returns false if evaluation should resume in
-// the calling context (Return action or no rule matched).
-func (c *Chain) match(pkt *packet.Packet, result *Result, chains map[string]*Chain, depth int) (bool, error) {
+// Returns Accept, Drop, or Pass if a matching rule ended evaluation for this
+// table, or Undecided if evaluation should resume in the calling context
+// (Return action or no rule matched).
+func (c *Chain) match(pkt *packet.Packet, state conntrack.State, result *Result, chains map[string]*Chain, depth int) (Action, error) {
 	if depth > MaxJumpDepth {
-		return false, fmt.Errorf("jump depth exceeded %d at chain %q: possible jump cycle", MaxJumpDepth, c.Name)
-	}
-	state := conntrack.StateNew
-	if result.ConnState != nil {
-		state = *result.ConnState
+		return Undecided, fmt.Errorf("jump depth exceeded %d at chain %q: possible jump cycle", MaxJumpDepth, c.Name)
 	}
 	for _, r := range c.Rules {
 		result.Trace = append(result.Trace, r)
-		if r.MatchWithConntrackState(pkt, state) {
+		if r.match(pkt, state) {
 			switch r.Action {
 			case Accept, Drop, Pass:
-				result.Verdict = &r.Action
-				return true, nil
+				return r.Action, nil
 			case Return:
-				return false, nil
+				return Undecided, nil
 			case Jump:
 				target, ok := chains[r.JumpTarget]
 				if !ok {
-					return false, fmt.Errorf("chain %q not found", r.JumpTarget)
+					return Undecided, fmt.Errorf("chain %q not found", r.JumpTarget)
 				}
-				terminated, err := target.match(pkt, result, chains, depth+1)
+				verdict, err := target.match(pkt, state, result, chains, depth+1)
 				if err != nil {
-					return false, err
+					return Undecided, err
 				}
-				if terminated {
-					return true, nil
+				if verdict != Undecided {
+					return verdict, nil
 				}
 				// Target chain returned without a verdict; continue evaluating
 				// the current chain at the next rule.
 			}
 		}
 	}
-	return false, nil
+	return Undecided, nil
 }

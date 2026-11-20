@@ -273,9 +273,12 @@ func TestActionString(t *testing.T) {
 		action   Action
 		expected string
 	}{
+		{Undecided, "Undecided"},
 		{Accept, "Accept"},
 		{Drop, "Drop"},
 		{Pass, "Pass"},
+		{Jump, "Jump"},
+		{Return, "Return"},
 		{Action(999), "Undefined(999)"},
 	}
 
@@ -294,9 +297,12 @@ func TestActionValidate(t *testing.T) {
 		action    Action
 		shouldErr bool
 	}{
+		{"Undecided is invalid as rule action", Undecided, true},
 		{"Accept is valid", Accept, false},
 		{"Drop is valid", Drop, false},
 		{"Pass is valid", Pass, false},
+		{"Jump is valid", Jump, false},
+		{"Return is valid", Return, false},
 		{"Undefined action is invalid", Action(999), true},
 		{"Another undefined action is invalid", Action(-1), true},
 	}
@@ -405,9 +411,9 @@ func TestParseAction(t *testing.T) {
 		{"pass", Pass, false},
 		{"Pass", Pass, false},
 		{"PASS", Pass, false},
-		{"invalid", Action(0), true},
-		{"", Action(0), true},
-		{"deny", Action(0), true},
+		{"invalid", Undecided, true},
+		{"", Undecided, true},
+		{"deny", Undecided, true},
 	}
 
 	for _, tt := range tests {
@@ -416,6 +422,9 @@ func TestParseAction(t *testing.T) {
 			if tt.shouldErr {
 				if err == nil {
 					t.Errorf("ParseAction(%q) expected error, got nil", tt.input)
+				}
+				if action != Undecided {
+					t.Errorf("ParseAction(%q) = %v; want %v", tt.input, action, Undecided)
 				}
 			} else {
 				if err != nil {

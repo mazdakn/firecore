@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/mazdakn/firecore/conntrack"
 	"github.com/mazdakn/firecore/packet"
 )
 
@@ -23,6 +24,11 @@ type Table struct {
 func NewTable(name string, order uint64, defaultAction Action) (*Table, error) {
 	if name == "" {
 		return nil, fmt.Errorf("table name must not be empty")
+	}
+	switch defaultAction {
+	case Accept, Drop, Pass:
+	default:
+		return nil, fmt.Errorf("invalid table default action %v: must be Accept, Drop, or Pass", defaultAction)
 	}
 
 	defaultRule, err := NewRule(
@@ -139,40 +145,48 @@ func (t *Table) Validate() error {
 	return nil
 }
 
-func (t *Table) Match(pkt *packet.Packet, result *Result) (bool, error) {
+func (t *Table) Match(pkt *packet.Packet, result *Result) (Action, error) {
 	if pkt == nil {
-		return false, fmt.Errorf("nil packet")
+		return Undecided, fmt.Errorf("nil packet")
 	}
 	if result == nil {
-		return false, fmt.Errorf("nil result")
+		return Undecided, fmt.Errorf("nil result")
 	}
+	state := conntrack.StateNew
+	if result.ConnState != nil {
+		state = *result.ConnState
+	}
+	return t.match(pkt, state, result)
+}
 
-	entry, ok := t.Chains[t.entryChain]
-	if ok {
-		terminated, err := entry.match(pkt, result, t.Chains, 0)
+func (t *Table) match(pkt *packet.Packet, state conntrack.State, result *Result) (Action, error) {
+	if entry, ok := t.Chains[t.entryChain]; ok {
+		verdict, err := entry.match(pkt, state, result, t.Chains, 0)
 		if err != nil {
-			return false, err
+			return Undecided, err
 		}
-		if terminated {
-			return result.Verdict.IsTerminal(), nil
+		if verdict != Undecided {
+			if verdict.IsTerminal() {
+				result.Verdict = verdict
+			}
+			return verdict, nil
 		}
 	}
 	// Entry chain fell through without a verdict.
 	return t.MatchDefaultRule(pkt, result), nil
 }
 
-func (t *Table) MatchDefaultRule(pkt *packet.Packet, result *Result) bool {
-	if t.DefaultRule != nil {
-		t.DefaultRule.IncrementPacketCount()
-		t.DefaultRule.AddByteCount(uint64(pkt.Size))
-		result.Trace = append(result.Trace, t.DefaultRule)
-		if t.DefaultRule.Action.IsTerminal() {
-			result.Verdict = &t.DefaultRule.Action
-			return true
-		}
-		return false
+func (t *Table) MatchDefaultRule(pkt *packet.Packet, result *Result) Action {
+	if t.DefaultRule == nil {
+		return Undecided
 	}
-	return false
+	t.DefaultRule.IncrementPacketCount()
+	t.DefaultRule.AddByteCount(uint64(pkt.Size))
+	result.Trace = append(result.Trace, t.DefaultRule)
+	if t.DefaultRule.Action.IsTerminal() {
+		result.Verdict = t.DefaultRule.Action
+	}
+	return t.DefaultRule.Action
 }
 
 func SortTables(tables []*Table) {

@@ -12,11 +12,8 @@ import (
 
 func expectMatchResult(t *testing.T, result *Result, expectedVerdict Action, expectedRule string) {
 	t.Helper()
-	if result.Verdict == nil {
-		t.Fatalf("expected verdict %v, got nil", expectedVerdict)
-	}
-	if *result.Verdict != expectedVerdict {
-		t.Errorf("expected verdict %v, got %v", expectedVerdict, *result.Verdict)
+	if result.Verdict != expectedVerdict {
+		t.Errorf("expected verdict %v, got %v", expectedVerdict, result.Verdict)
 	}
 	if len(result.Trace) == 0 {
 		t.Fatal("expected non-empty trace")
@@ -166,7 +163,7 @@ func TestEvaluateSortsTablesByAscendingOrder(t *testing.T) {
 	if !slices.Equal(engine.Tables, []*Table{passTable, acceptTable}) {
 		t.Errorf("engine.Tables = %v; want [%v, %v]", engine.Tables, passTable, acceptTable)
 	}
-	if result.Verdict == nil || *result.Verdict != Accept {
+	if result.Verdict != Accept {
 		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Accept)
 	}
 	if len(result.Trace) != 2 {
@@ -229,7 +226,7 @@ func TestEvaluatePassesToNextTable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("engine.Evaluate unexpected error: %v", err)
 	}
-	if result.Verdict == nil || *result.Verdict != Accept {
+	if result.Verdict != Accept {
 		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Accept)
 	}
 	if len(result.Trace) != 2 {
@@ -427,7 +424,7 @@ func TestEvaluateSupportsJumpChains(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Evaluate unexpected error: %v", err)
 	}
-	if result.Verdict == nil || *result.Verdict != Accept {
+	if result.Verdict != Accept {
 		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Accept)
 	}
 	if len(result.Trace) != 2 {
@@ -474,5 +471,30 @@ func TestEvaluateReturnsErrorForMissingJumpTarget(t *testing.T) {
 	}
 	if result != nil {
 		t.Errorf("result = %v; want nil", result)
+	}
+}
+
+func TestEvaluateUndecidedWhenAllTablesPass(t *testing.T) {
+	passTable := newTable("pass-only", 1, Pass)
+	chain := newChain("entry")
+	if err := chain.AddRule(newRule(WithName("pass-all"), WithAction(Pass))); err != nil {
+		t.Fatalf("AddRule unexpected error: %v", err)
+	}
+	if err := passTable.AddChain(chain); err != nil {
+		t.Fatalf("AddChain unexpected error: %v", err)
+	}
+
+	engine := newEngine()
+	if err := engine.AddTable(passTable); err != nil {
+		t.Fatalf("AddTable unexpected error: %v", err)
+	}
+
+	pkt := mustNewPacket(t, packet.WithSrcAddr("10.0.0.1"), packet.WithDstAddr("1.1.1.1"))
+	result, err := engine.Evaluate(pkt)
+	if err != nil {
+		t.Fatalf("Evaluate unexpected error: %v", err)
+	}
+	if result.Verdict != Undecided {
+		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Undecided)
 	}
 }

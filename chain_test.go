@@ -152,15 +152,15 @@ func TestTableJumpToChainAndReturn(t *testing.T) {
 	}
 
 	result := &Result{}
-	matched, err := tbl.Match(pkt, result)
+	verdict, err := tbl.Match(pkt, result)
 
-	if !matched {
-		t.Errorf("tbl.Match() matched = false; want true")
+	if verdict != Accept {
+		t.Errorf("tbl.Match() verdict = %v; want %v", verdict, Accept)
 	}
 	if err != nil {
 		t.Fatalf("tbl.Match() unexpected error: %v", err)
 	}
-	if result.Verdict == nil || *result.Verdict != Accept {
+	if result.Verdict != Accept {
 		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Accept)
 	}
 	if len(result.Trace) != 2 {
@@ -208,16 +208,16 @@ func TestTableJumpChainNoMatchReturnsToCaller(t *testing.T) {
 	}
 
 	result := &Result{}
-	matched, err := tbl.Match(pkt, result)
+	verdict, err := tbl.Match(pkt, result)
 
 	// helper chain returned, entry chain fell through → default Drop
 	if err != nil {
 		t.Fatalf("tbl.Match() unexpected error: %v", err)
 	}
-	if !matched {
-		t.Errorf("tbl.Match() matched = false; want true")
+	if verdict != Drop {
+		t.Errorf("tbl.Match() verdict = %v; want %v", verdict, Drop)
 	}
-	if result.Verdict == nil || *result.Verdict != Drop {
+	if result.Verdict != Drop {
 		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Drop)
 	}
 }
@@ -259,16 +259,16 @@ func TestTableReturnActionReturnsToCallerChain(t *testing.T) {
 	}
 
 	result := &Result{}
-	matched, err := tbl.Match(pkt, result)
+	verdict, err := tbl.Match(pkt, result)
 
 	// Return in helper → continues in main after jump-to-helper → accept-all
 	if err != nil {
 		t.Fatalf("tbl.Match() unexpected error: %v", err)
 	}
-	if !matched {
-		t.Errorf("tbl.Match() matched = false; want true")
+	if verdict != Accept {
+		t.Errorf("tbl.Match() verdict = %v; want %v", verdict, Accept)
 	}
-	if result.Verdict == nil || *result.Verdict != Accept {
+	if result.Verdict != Accept {
 		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Accept)
 	}
 	if len(result.Trace) == 0 || result.Trace[len(result.Trace)-1].Name != "accept-all" {
@@ -296,14 +296,14 @@ func TestTableMatchReturnsErrorForMissingJumpTarget(t *testing.T) {
 	)
 
 	result := &Result{}
-	matched, err := tbl.Match(pkt, result)
+	verdict, err := tbl.Match(pkt, result)
 
 	wantErr := `chain "missing" not found`
 	if err == nil || err.Error() != wantErr {
 		t.Errorf("err = %v; want %q", err, wantErr)
 	}
-	if matched {
-		t.Errorf("tbl.Match() matched = true; want false")
+	if verdict != Undecided {
+		t.Errorf("tbl.Match() verdict = %v; want %v", verdict, Undecided)
 	}
 	if len(result.Trace) != 1 {
 		t.Fatalf("len(result.Trace) = %d; want 1", len(result.Trace))
@@ -339,10 +339,10 @@ func TestTableMatchReturnsErrorWhenJumpDepthExceeded(t *testing.T) {
 		packet.WithDstAddr("1.1.1.1"),
 	)
 	result := &Result{}
-	matched, err := tbl.Match(pkt, result)
+	verdict, err := tbl.Match(pkt, result)
 
-	if matched {
-		t.Errorf("tbl.Match() matched = true; want false")
+	if verdict != Undecided {
+		t.Errorf("tbl.Match() verdict = %v; want %v", verdict, Undecided)
 	}
 	if err == nil || !strings.Contains(err.Error(), "jump depth exceeded") {
 		t.Errorf("err = %v; want substring 'jump depth exceeded'", err)

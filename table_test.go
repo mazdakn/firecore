@@ -16,6 +16,20 @@ func TestNewTableEmptyNameFails(t *testing.T) {
 	}
 }
 
+func TestNewTableInvalidDefaultActionFails(t *testing.T) {
+	for _, action := range []Action{Undecided, Jump, Return, Action(999)} {
+		t.Run(action.String(), func(t *testing.T) {
+			tbl, err := NewTable("test", 0, action)
+			if err == nil {
+				t.Fatalf("NewTable(..., %v) expected error, got nil", action)
+			}
+			if tbl != nil {
+				t.Errorf("NewTable(..., %v) expected nil tbl, got %v", action, tbl)
+			}
+		})
+	}
+}
+
 func TestAddChainNilFails(t *testing.T) {
 	tbl := newTable("test", 0, Drop)
 	if err := tbl.AddChain(nil); err == nil {
@@ -129,14 +143,14 @@ func TestTableMatchUsesAscendingOrder(t *testing.T) {
 	}
 
 	result := &Result{}
-	matched, err := tbl.Match(pkt, result)
+	verdict, err := tbl.Match(pkt, result)
 	if err != nil {
 		t.Fatalf("tbl.Match unexpected error: %v", err)
 	}
-	if !matched {
-		t.Errorf("tbl.Match matched = false; want true")
+	if verdict != Accept {
+		t.Errorf("tbl.Match verdict = %v; want %v", verdict, Accept)
 	}
-	if result.Verdict == nil || *result.Verdict != Accept {
+	if result.Verdict != Accept {
 		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Accept)
 	}
 }
@@ -163,16 +177,16 @@ func TestTableMatchPassRuleDoesNotEvaluateDefaultAction(t *testing.T) {
 	}
 
 	result := &Result{}
-	matched, err := tbl.Match(pkt, result)
+	verdict, err := tbl.Match(pkt, result)
 
 	if err != nil {
 		t.Fatalf("tbl.Match unexpected error: %v", err)
 	}
-	if matched {
-		t.Errorf("tbl.Match matched = true; want false")
+	if verdict != Pass {
+		t.Errorf("tbl.Match verdict = %v; want %v", verdict, Pass)
 	}
-	if result.Verdict == nil || *result.Verdict != Pass {
-		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Pass)
+	if result.Verdict != Undecided {
+		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Undecided)
 	}
 	if len(result.Trace) != 1 {
 		t.Fatalf("len(result.Trace) = %d; want 1", len(result.Trace))
@@ -197,16 +211,16 @@ func TestTableMatchNoRuleAndDefaultPassReturnsNoMatchVerdict(t *testing.T) {
 	)
 
 	result := &Result{}
-	matched, err := tbl.Match(pkt, result)
+	verdict, err := tbl.Match(pkt, result)
 
 	if err != nil {
 		t.Fatalf("tbl.Match unexpected error: %v", err)
 	}
-	if matched {
-		t.Errorf("tbl.Match matched = true; want false")
+	if verdict != Pass {
+		t.Errorf("tbl.Match verdict = %v; want %v", verdict, Pass)
 	}
-	if result.Verdict != nil {
-		t.Errorf("result.Verdict = %v; want nil", *result.Verdict)
+	if result.Verdict != Undecided {
+		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Undecided)
 	}
 	if len(result.Trace) != 1 {
 		t.Fatalf("len(result.Trace) = %d; want 1", len(result.Trace))
@@ -268,16 +282,16 @@ func TestTableMatchNilDefaultRuleReturnsNoMatch(t *testing.T) {
 	)
 
 	result := &Result{}
-	matched, err := tbl.Match(pkt, result)
+	verdict, err := tbl.Match(pkt, result)
 
 	if err != nil {
 		t.Fatalf("tbl.Match unexpected error: %v", err)
 	}
-	if matched {
-		t.Errorf("tbl.Match matched = true; want false")
+	if verdict != Undecided {
+		t.Errorf("tbl.Match verdict = %v; want %v", verdict, Undecided)
 	}
-	if result.Verdict != nil {
-		t.Errorf("result.Verdict = %v; want nil", *result.Verdict)
+	if result.Verdict != Undecided {
+		t.Errorf("result.Verdict = %v; want %v", result.Verdict, Undecided)
 	}
 	if len(result.Trace) != 0 {
 		t.Errorf("len(result.Trace) = %d; want 0", len(result.Trace))

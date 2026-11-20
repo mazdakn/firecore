@@ -9,8 +9,9 @@ import (
 
 // Result is the outcome of evaluating a packet with Engine.Evaluate.
 type Result struct {
-	// Verdict is the final decision, or nil if no table decided.
-	Verdict *Action
+	// Verdict is the final decision (Accept or Drop), or Undecided if no table
+	// reached a terminal verdict.
+	Verdict Action
 	// Trace lists every rule inspected during evaluation, in the order
 	// evaluated, regardless of whether each one matched.
 	Trace []*Rule
@@ -62,28 +63,25 @@ func (e *Engine) Evaluate(pkt *packet.Packet) (*Result, error) {
 	}
 
 	result := &Result{}
+	state := conntrack.StateNew
 	if e.tracker != nil {
-		state, err := e.tracker.Lookup(pkt)
+		lookedUp, err := e.tracker.Lookup(pkt)
 		if err != nil {
 			return nil, fmt.Errorf("evaluate: %w", err)
 		}
+		state = lookedUp
 		result.ConnState = &state
 	}
-	decided := false
 	for _, t := range e.Tables {
-		matched, err := t.Match(pkt, result)
+		verdict, err := t.match(pkt, state, result)
 		if err != nil {
 			return nil, fmt.Errorf("evaluate in table %q: %w", t.Name, err)
 		}
-		if matched {
-			decided = true
+		if verdict.IsTerminal() {
 			break
 		}
 	}
-	if !decided {
-		result.Verdict = nil
-	}
-	if e.tracker != nil && result.Verdict != nil && *result.Verdict == Accept {
+	if e.tracker != nil && result.Verdict == Accept {
 		if err := e.tracker.CommitAccepted(pkt); err != nil {
 			return nil, fmt.Errorf("evaluate: %w", err)
 		}

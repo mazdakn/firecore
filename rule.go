@@ -17,7 +17,10 @@ import (
 type Action int
 
 const (
-	Accept Action = iota
+	// Undecided is the zero value of Action, indicating that no verdict was
+	// reached.
+	Undecided Action = iota
+	Accept
 	Drop
 	Pass
 	Jump
@@ -25,11 +28,10 @@ const (
 )
 
 // String returns the action's name, or "Undefined(n)" for an invalid value.
-// Defined on a value receiver so Action satisfies fmt.Stringer for values,
-// not just pointers; fmt already prints "<nil>" for a nil *Action (e.g. an
-// undecided Result.Verdict) without invoking this method.
 func (a Action) String() string {
 	switch a {
+	case Undecided:
+		return "Undecided"
 	case Accept:
 		return "Accept"
 	case Drop:
@@ -58,7 +60,7 @@ func (a Action) Validate() error {
 	}
 }
 
-// ParseAction parses an action string into an Action type
+// ParseAction parses an action string into an Action type.
 func ParseAction(s string) (Action, error) {
 	switch strings.ToLower(s) {
 	case "accept":
@@ -72,7 +74,7 @@ func ParseAction(s string) (Action, error) {
 	case "return":
 		return Return, nil
 	default:
-		return Action(0), fmt.Errorf("unknown action: %s", s)
+		return Undecided, fmt.Errorf("unknown action: %s", s)
 	}
 }
 
@@ -375,6 +377,10 @@ func (r *Rule) MatchWithConntrackState(pkt *packet.Packet, state conntrack.State
 	if state == "" {
 		state = conntrack.StateNew
 	}
+	return r.match(pkt, state)
+}
+
+func (r *Rule) match(pkt *packet.Packet, state conntrack.State) bool {
 	if r.protos != nil && !r.protos.MatchProto(pkt.Proto) {
 		return false
 	}

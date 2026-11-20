@@ -13,11 +13,8 @@ import (
 
 func expectMatchResult(t *testing.T, result *firecore.Result, expectedVerdict firecore.Action, expectedRule string) {
 	t.Helper()
-	if result.Verdict == nil {
-		t.Fatalf("expected verdict %v, got nil", expectedVerdict)
-	}
-	if *result.Verdict != expectedVerdict {
-		t.Errorf("expected verdict %v, got %v", expectedVerdict, *result.Verdict)
+	if result.Verdict != expectedVerdict {
+		t.Errorf("expected verdict %v, got %v", expectedVerdict, result.Verdict)
 	}
 	if len(result.Trace) == 0 {
 		t.Fatal("expected non-empty trace")
