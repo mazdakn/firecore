@@ -2,6 +2,7 @@ package set
 
 import (
 	"fmt"
+	"net/netip"
 	"strings"
 	"unicode"
 )
@@ -79,6 +80,11 @@ func (s *IfaceSet) Match(v any) bool {
 // packet-matching hot path avoid interface-boxing it.
 func (s *IfaceSet) MatchIface(iface string) bool {
 	return s.Exists(iface)
+}
+
+// MatchEndpoint implements EndpointSet by matching against iface.
+func (s *IfaceSet) MatchEndpoint(_ netip.AddrPort, iface string) bool {
+	return s.MatchIface(iface)
 }
 
 func (s *IfaceSet) Type() Type {

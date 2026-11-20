@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/mazdakn/firecore/conntrack"
-	"github.com/mazdakn/firecore/matcher"
 	"github.com/mazdakn/firecore/packet"
 	"github.com/mazdakn/firecore/proto"
 	"github.com/mazdakn/firecore/set"
@@ -660,8 +659,6 @@ func TestNegatedRuleMatch(t *testing.T) {
 }
 
 func TestNegatedRuleConfig(t *testing.T) {
-	// Valid negated rule — negated options wrap a shared matcher type in
-	// matcher.Negated rather than using a dedicated Not* type.
 	rule := mustNew(
 		WithAction(Accept),
 		WithNotProto(proto.TCP),
@@ -670,40 +667,34 @@ func TestNegatedRuleConfig(t *testing.T) {
 		WithNotSrcNet("10.0.0.0/8"),
 		WithNotDstNet("192.168.0.0/16"),
 	)
-	if _, ok := findMatcher[*matcher.ProtoMatcher](rule, true); !ok {
-		t.Error("expected negated ProtoMatcher")
+	if rule.notProtos == nil {
+		t.Error("expected negated protos set")
 	}
-	if _, ok := findSrcSet(rule, true, set.TypePort); !ok {
-		t.Error("expected negated SrcSet Port")
+	if rule.notSrc == nil || rule.notSrc.ports == nil {
+		t.Error("expected negated src ports set")
 	}
-	if _, ok := findDstSet(rule, true, set.TypePort); !ok {
-		t.Error("expected negated DstSet Port")
+	if rule.notDst == nil || rule.notDst.ports == nil {
+		t.Error("expected negated dst ports set")
 	}
-	if _, ok := findSrcSet(rule, true, set.TypeIP); !ok {
-		t.Error("expected negated SrcSet IP")
+	if rule.notSrc == nil || rule.notSrc.ips == nil {
+		t.Error("expected negated src IPs set")
 	}
-	if _, ok := findDstSet(rule, true, set.TypeIP); !ok {
-		t.Error("expected negated DstSet IP")
+	if rule.notDst == nil || rule.notDst.ips == nil {
+		t.Error("expected negated dst IPs set")
 	}
-	// Positive (non-negated) matchers should be absent when only negated
+	// Positive (non-negated) filters should be absent when only negated
 	// values are specified.
-	if _, ok := findMatcher[*matcher.ProtoMatcher](rule, false); ok {
-		t.Error("expected no positive ProtoMatcher")
+	if rule.protos != nil {
+		t.Error("expected no positive protos set")
 	}
-	if _, ok := findSrcSet(rule, false, set.TypePort); ok {
-		t.Error("expected no positive SrcSet Port")
+	if rule.src != nil {
+		t.Error("expected no positive src filter")
 	}
-	if _, ok := findDstSet(rule, false, set.TypePort); ok {
-		t.Error("expected no positive DstSet Port")
-	}
-	if _, ok := findSrcSet(rule, false, set.TypeIP); ok {
-		t.Error("expected no positive SrcSet IP")
-	}
-	if _, ok := findDstSet(rule, false, set.TypeIP); ok {
-		t.Error("expected no positive DstSet IP")
+	if rule.dst != nil {
+		t.Error("expected no positive dst filter")
 	}
 
-	// Positive and negated matchers can be combined on the same rule
+	// Positive and negated filters can be combined on the same rule.
 	ruleCombined := mustNew(
 		WithAction(Accept),
 		WithProto(proto.UDP),
@@ -717,35 +708,23 @@ func TestNegatedRuleConfig(t *testing.T) {
 		WithDstNet("1.1.1.0/24"),
 		WithNotDstNet("1.1.1.100/32"),
 	)
-	if _, ok := findMatcher[*matcher.ProtoMatcher](ruleCombined, false); !ok {
-		t.Error("expected positive ProtoMatcher")
+	if ruleCombined.protos == nil {
+		t.Error("expected positive protos set")
 	}
-	if _, ok := findMatcher[*matcher.ProtoMatcher](ruleCombined, true); !ok {
-		t.Error("expected negated ProtoMatcher")
+	if ruleCombined.notProtos == nil {
+		t.Error("expected negated protos set")
 	}
-	if _, ok := findSrcSet(ruleCombined, false, set.TypePort); !ok {
-		t.Error("expected positive SrcSet Port")
+	if ruleCombined.src == nil || ruleCombined.src.ports == nil || ruleCombined.src.ips == nil {
+		t.Error("expected positive src port and IP sets")
 	}
-	if _, ok := findSrcSet(ruleCombined, true, set.TypePort); !ok {
-		t.Error("expected negated SrcSet Port")
+	if ruleCombined.notSrc == nil || ruleCombined.notSrc.ports == nil || ruleCombined.notSrc.ips == nil {
+		t.Error("expected negated src port and IP sets")
 	}
-	if _, ok := findDstSet(ruleCombined, false, set.TypePort); !ok {
-		t.Error("expected positive DstSet Port")
+	if ruleCombined.dst == nil || ruleCombined.dst.ports == nil || ruleCombined.dst.ips == nil {
+		t.Error("expected positive dst port and IP sets")
 	}
-	if _, ok := findDstSet(ruleCombined, true, set.TypePort); !ok {
-		t.Error("expected negated DstSet Port")
-	}
-	if _, ok := findSrcSet(ruleCombined, false, set.TypeIP); !ok {
-		t.Error("expected positive SrcSet IP")
-	}
-	if _, ok := findSrcSet(ruleCombined, true, set.TypeIP); !ok {
-		t.Error("expected negated SrcSet IP")
-	}
-	if _, ok := findDstSet(ruleCombined, false, set.TypeIP); !ok {
-		t.Error("expected positive DstSet IP")
-	}
-	if _, ok := findDstSet(ruleCombined, true, set.TypeIP); !ok {
-		t.Error("expected negated DstSet IP")
+	if ruleCombined.notDst == nil || ruleCombined.notDst.ports == nil || ruleCombined.notDst.ips == nil {
+		t.Error("expected negated dst port and IP sets")
 	}
 }
 
@@ -1318,5 +1297,105 @@ func TestNotIfaceSetRuleMatch(t *testing.T) {
 	}
 	if !rNotDst.Match(pktEgressEth1) {
 		t.Error("rNotDst.Match(pktEgressEth1) = false; want true")
+	}
+}
+
+func TestInlineOptionDoesNotMutateNamedSet(t *testing.T) {
+	sharedPorts := set.NewPortSet()
+	if err := sharedPorts.Add(uint16(80)); err != nil {
+		t.Fatalf("sharedPorts.Add: %v", err)
+	}
+
+	// Combining WithSrcSet(sharedPorts) and WithSrcPort(8080) must not add
+	// 8080 to sharedPorts, and must require both conditions to hold.
+	r := mustNew(WithSrcSet(sharedPorts), WithSrcPort(8080))
+	if sharedPorts.MatchPort(8080) {
+		t.Fatal("WithSrcPort mutated caller-owned named PortSet")
+	}
+	if r.Match(mustNewPacket(t, packet.WithSrcPort(80))) {
+		t.Error("r.Match(port 80) = true; want false (does not match inline port 8080)")
+	}
+	if r.Match(mustNewPacket(t, packet.WithSrcPort(8080))) {
+		t.Error("r.Match(port 8080) = true; want false (not in sharedPorts)")
+	}
+
+	// Same isolation for negated sets: neither 80 (named) nor 8080 (inline)
+	// should match, while 443 should match, and sharedPorts remains unchanged.
+	rNot := mustNew(WithNotSrcSet(sharedPorts), WithNotSrcPort(8080))
+	if sharedPorts.MatchPort(8080) {
+		t.Fatal("WithNotSrcPort mutated caller-owned named PortSet")
+	}
+	if rNot.Match(mustNewPacket(t, packet.WithSrcPort(80))) {
+		t.Error("rNot.Match(port 80) = true; want false")
+	}
+	if rNot.Match(mustNewPacket(t, packet.WithSrcPort(8080))) {
+		t.Error("rNot.Match(port 8080) = true; want false")
+	}
+	if !rNot.Match(mustNewPacket(t, packet.WithSrcPort(443))) {
+		t.Error("rNot.Match(port 443) = false; want true")
+	}
+}
+
+func TestMultipleNamedSetsOnSameEndpoint(t *testing.T) {
+	netA := set.NewIPSet()
+	_ = netA.Add("10.0.0.0/8")
+	netB := set.NewIPSet()
+	_ = netB.Add("10.1.0.0/16")
+
+	rPos := mustNew(WithSrcSet(netA), WithSrcSet(netB))
+	if !rPos.Match(mustNewPacket(t, packet.WithSrcAddr("10.1.2.3"))) {
+		t.Error("rPos should match IP in both sets")
+	}
+	if rPos.Match(mustNewPacket(t, packet.WithSrcAddr("10.2.0.1"))) {
+		t.Error("rPos should not match IP in only one set")
+	}
+
+	rNeg := mustNew(WithNotSrcSet(netA), WithNotSrcSet(netB))
+	if rNeg.Match(mustNewPacket(t, packet.WithSrcAddr("10.2.0.1"))) {
+		t.Error("rNeg should not match IP in netA")
+	}
+	if !rNeg.Match(mustNewPacket(t, packet.WithSrcAddr("192.168.1.1"))) {
+		t.Error("rNeg should match IP in neither set")
+	}
+}
+
+func BenchmarkRuleMatchInline(b *testing.B) {
+	r := mustNew(
+		WithProto(proto.TCP),
+		WithSrcNet("10.0.0.0/8"),
+		WithDstPort(80),
+		WithDstPort(443),
+		WithNotSrcPort(22),
+	)
+	pkt := mustNewPacket(b,
+		packet.WithProto(proto.TCP),
+		packet.WithSrcAddr("10.1.2.3"),
+		packet.WithSrcPort(54321),
+		packet.WithDstAddr("1.1.1.1"),
+		packet.WithDstPort(443),
+	)
+
+	b.ReportAllocs()
+	for b.Loop() {
+		_ = r.Match(pkt)
+	}
+}
+
+func BenchmarkRuleMatchNamedSets(b *testing.B) {
+	nets := set.NewIPSet()
+	_ = nets.Add("10.0.0.0/8")
+	ports := set.NewPortSet()
+	_ = ports.Add(uint16(80))
+	_ = ports.Add(uint16(443))
+
+	r := mustNew(WithSrcSet(nets), WithDstSet(ports))
+	pkt := mustNewPacket(b,
+		packet.WithSrcAddr("10.1.2.3"),
+		packet.WithDstPort(443),
+	)
+
+	b.ReportAllocs()
+	for b.Loop() {
+		_ = r.Match(pkt)
 	}
 }

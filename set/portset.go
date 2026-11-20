@@ -3,6 +3,7 @@ package set
 import (
 	"cmp"
 	"fmt"
+	"net/netip"
 	"slices"
 	"strconv"
 
@@ -116,6 +117,11 @@ func (p *PortSet) MatchPort(port uint16) bool {
 		}
 	}
 	return false
+}
+
+// MatchEndpoint implements EndpointSet by matching against ap.Port().
+func (p *PortSet) MatchEndpoint(ap netip.AddrPort, _ string) bool {
+	return p.MatchPort(ap.Port())
 }
 
 func (p *PortSet) Type() Type {

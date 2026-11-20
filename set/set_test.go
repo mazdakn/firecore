@@ -1,6 +1,7 @@
 package set
 
 import (
+	"net/netip"
 	"testing"
 )
 
@@ -65,5 +66,58 @@ func TestSetTypes(t *testing.T) {
 	}
 	if got := NewIfaceSet().Type(); got != TypeIface {
 		t.Errorf("NewIfaceSet().Type() = %v; want %v", got, TypeIface)
+	}
+}
+
+func TestEndpointSetMatchEndpoint(t *testing.T) {
+	ap := netip.MustParseAddrPort("10.1.2.3:443")
+	otherAP := netip.MustParseAddrPort("192.168.1.1:80")
+
+	ipSet := NewIPSet()
+	if err := ipSet.Add("10.0.0.0/8"); err != nil {
+		t.Fatalf("ipSet.Add: %v", err)
+	}
+	portSet := NewPortSet()
+	if err := portSet.Add(uint16(443)); err != nil {
+		t.Fatalf("portSet.Add: %v", err)
+	}
+	ipPortSet := NewIPPortSet()
+	if err := ipPortSet.Add("10.0.0.0/8,443"); err != nil {
+		t.Fatalf("ipPortSet.Add: %v", err)
+	}
+	ifaceSet := NewIfaceSet()
+	if err := ifaceSet.Add("eth0"); err != nil {
+		t.Fatalf("ifaceSet.Add: %v", err)
+	}
+
+	cases := []struct {
+		name  string
+		set   EndpointSet
+		match bool
+		ap    netip.AddrPort
+		iface string
+	}{
+		{"ip-hit", ipSet, true, ap, "eth1"},
+		{"ip-miss", ipSet, false, otherAP, "eth0"},
+		{"port-hit", portSet, true, ap, "eth1"},
+		{"port-miss", portSet, false, otherAP, "eth0"},
+		{"ipport-hit", ipPortSet, true, ap, "eth1"},
+		{"ipport-miss", ipPortSet, false, otherAP, "eth0"},
+		{"iface-hit", ifaceSet, true, otherAP, "eth0"},
+		{"iface-miss", ifaceSet, false, ap, "eth1"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.set.MatchEndpoint(tc.ap, tc.iface); got != tc.match {
+				t.Errorf("MatchEndpoint(%v, %q) = %v; want %v", tc.ap, tc.iface, got, tc.match)
+			}
+		})
+	}
+
+	// ProtoSet must not satisfy EndpointSet.
+	var ps Set = NewProtoSet()
+	if _, ok := ps.(EndpointSet); ok {
+		t.Error("ProtoSet should not implement EndpointSet")
 	}
 }

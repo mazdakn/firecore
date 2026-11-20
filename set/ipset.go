@@ -107,6 +107,11 @@ func (s *IPSet) MatchIP(ip netip.Addr) bool {
 	return false
 }
 
+// MatchEndpoint implements EndpointSet by matching against ap.Addr().
+func (s *IPSet) MatchEndpoint(ap netip.AddrPort, _ string) bool {
+	return s.MatchIP(ap.Addr())
+}
+
 func (s *IPSet) Type() Type {
 	return TypeIP
 }
